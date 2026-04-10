@@ -12,7 +12,6 @@
         .dar-gold { background-color: #D4AF37; }
         .text-dar-gold { color: #D4AF37; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; }
-        /* Hide scrollbar for a cleaner mobile experience */
         ::-webkit-scrollbar { display: none; }
     </style>
 </head>
@@ -28,10 +27,13 @@
 
         // --- APP STATE ---
         let currentUser = null;
-        let currentTab = 'pending'; // 'pending' or 'approved'
+        let currentTab = 'pending'; // 'pending', 'approved', 'denied', 'reports'
+        let reportFilter = 'day'; // 'day', 'week', 'month'
+        
         let pendingOrders = [];
         let approvedOrders = [];
-        let itineraries = [];
+        let deniedOrders = [];
+        let reportData = [];
 
         const appDiv = document.getElementById('app');
 
@@ -122,24 +124,36 @@
                     <button onclick="logout()" class="ml-4 text-xs bg-white bg-opacity-20 px-3 py-1.5 rounded-full font-bold active:bg-opacity-30">Logout</button>
                 </header>
 
-                <main id="mainContent" class="flex-grow overflow-y-auto bg-gray-100 relative pb-32"></main>
+                <main id="mainContent" class="flex-grow overflow-y-auto bg-gray-100 relative pb-40"></main>
 
                 <nav class="bg-white border-t border-gray-200 flex h-16 w-full fixed bottom-0 z-30 pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-                    <button onclick="switchTab('pending')" class="flex flex-col items-center justify-center w-1/2 h-full ${currentTab === 'pending' ? 'text-dar-green font-bold' : 'text-gray-400'} relative">
+                    <button onclick="switchTab('pending')" class="flex flex-col items-center justify-center w-1/4 h-full ${currentTab === 'pending' ? 'text-dar-green font-bold' : 'text-gray-400'} relative">
                         ${currentTab === 'pending' ? '<div class="absolute top-0 w-1/2 h-1 dar-green rounded-b-full"></div>' : ''}
                         <span class="text-xl mb-0.5">📥</span>
-                        <span class="text-[10px] uppercase tracking-wider">Pending</span>
+                        <span class="text-[9px] uppercase tracking-wider">Pending</span>
                     </button>
-                    <button onclick="switchTab('approved')" class="flex flex-col items-center justify-center w-1/2 h-full ${currentTab === 'approved' ? 'text-dar-green font-bold' : 'text-gray-400'} relative">
+                    <button onclick="switchTab('approved')" class="flex flex-col items-center justify-center w-1/4 h-full ${currentTab === 'approved' ? 'text-dar-green font-bold' : 'text-gray-400'} relative">
                         ${currentTab === 'approved' ? '<div class="absolute top-0 w-1/2 h-1 dar-green rounded-b-full"></div>' : ''}
                         <span class="text-xl mb-0.5">✅</span>
-                        <span class="text-[10px] uppercase tracking-wider">Approved</span>
+                        <span class="text-[9px] uppercase tracking-wider">Approved</span>
+                    </button>
+                    <button onclick="switchTab('denied')" class="flex flex-col items-center justify-center w-1/4 h-full ${currentTab === 'denied' ? 'text-red-600 font-bold' : 'text-gray-400'} relative">
+                        ${currentTab === 'denied' ? '<div class="absolute top-0 w-1/2 h-1 bg-red-600 rounded-b-full"></div>' : ''}
+                        <span class="text-xl mb-0.5">❌</span>
+                        <span class="text-[9px] uppercase tracking-wider">Denied</span>
+                    </button>
+                    <button onclick="switchTab('reports')" class="flex flex-col items-center justify-center w-1/4 h-full ${currentTab === 'reports' ? 'text-blue-600 font-bold' : 'text-gray-400'} relative">
+                        ${currentTab === 'reports' ? '<div class="absolute top-0 w-1/2 h-1 bg-blue-600 rounded-b-full"></div>' : ''}
+                        <span class="text-xl mb-0.5">📊</span>
+                        <span class="text-[9px] uppercase tracking-wider">Reports</span>
                     </button>
                 </nav>
             `;
             
             if (currentTab === 'pending') loadPendingTab();
-            else loadApprovedTab();
+            else if (currentTab === 'approved') loadStatusTab('APPROVED');
+            else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
+            else loadReportsTab();
         }
 
         function switchTab(tab) {
@@ -147,7 +161,7 @@
             renderMain();
         }
 
-        // --- 3. PENDING TAB (BATCH APPROVAL) ---
+        // --- 3. PENDING TAB (BATCH & INLINE APPROVAL) ---
         async function loadPendingTab() {
             const content = document.getElementById('mainContent');
             content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-gray-500 font-bold animate-pulse">Syncing Inbox...</p></div>`;
@@ -234,35 +248,41 @@
                     </label>
                     <button onclick="loadPendingTab()" class="text-gray-500 active:text-gray-800 p-1">🔄</button>
                 </div>
-                <div class="p-4 space-y-3 pb-24">
+                <div class="p-4 space-y-4 pb-24">
             `;
 
             pendingOrders.forEach(o => {
                 const displayName = o.names[0] + (o.names.length > 1 ? ` <span class="text-[10px] text-white bg-green-600 px-1.5 py-0.5 rounded-full font-bold relative -top-0.5">+${o.names.length-1}</span>` : '');
                 
                 html += `
-                    <label class="block bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-start space-x-4 active:bg-gray-50 transition cursor-pointer">
-                        <div class="pt-1">
-                            <input type="checkbox" value="${o.to_no}" class="to-checkbox w-6 h-6 rounded-md border-gray-300 text-dar-green focus:ring-dar-green shadow-sm">
-                        </div>
-                        <div class="flex-grow overflow-hidden">
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="font-bold text-xs text-gray-400 tracking-wider">${o.to_no}</span>
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 relative">
+                        <label class="flex items-start space-x-4 cursor-pointer mb-2">
+                            <div class="pt-1">
+                                <input type="checkbox" value="${o.to_no}" class="to-checkbox w-6 h-6 rounded-md border-gray-300 text-dar-green focus:ring-dar-green shadow-sm">
                             </div>
-                            <p class="font-bold text-gray-800 leading-tight mb-1">${displayName}</p>
-                            <p class="text-xs text-gray-600 truncate flex items-center"><span class="mr-1">📍</span> ${o.destinations}</p>
+                            <div class="flex-grow overflow-hidden">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="font-bold text-xs text-gray-400 tracking-wider">${o.to_no}</span>
+                                </div>
+                                <p class="font-bold text-gray-800 leading-tight mb-1">${displayName}</p>
+                                <p class="text-xs text-gray-600 truncate flex items-center"><span class="mr-1">📍</span> ${o.destinations}</p>
+                            </div>
+                        </label>
+                        <div class="flex justify-end space-x-2 mt-3 pt-3 border-t border-gray-100">
+                            <button onclick="processSingle('${o.to_no}', 'DISAPPROVE')" class="text-xs text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg font-bold transition">Deny</button>
+                            <button onclick="processSingle('${o.to_no}', 'APPROVE')" class="text-xs text-white dar-green px-4 py-2 rounded-lg font-bold shadow-sm active:opacity-80 transition">Approve</button>
                         </div>
-                    </label>
+                    </div>
                 `;
             });
 
             html += `</div>
                 <div class="fixed bottom-16 left-0 w-full bg-white/90 backdrop-blur border-t border-gray-200 p-3 flex justify-between space-x-3 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-20">
-                    <button onclick="handleBatchAction('DISAPPROVE')" class="w-1/3 bg-red-50 text-red-600 font-bold py-3.5 rounded-xl text-sm active:bg-red-100 transition border border-red-100">
-                        Deny
+                    <button onclick="handleBatchAction('DISAPPROVE')" class="w-1/3 bg-white text-gray-700 font-bold py-3 rounded-xl text-sm active:bg-gray-100 transition border border-gray-300">
+                        Batch Deny
                     </button>
-                    <button onclick="handleBatchAction('APPROVE')" class="w-2/3 dar-green text-white font-bold py-3.5 rounded-xl text-sm active:opacity-80 transition shadow-lg flex items-center justify-center space-x-2">
-                        <span>Approve Selected</span>
+                    <button onclick="handleBatchAction('APPROVE')" class="w-2/3 dar-green text-white font-bold py-3 rounded-xl text-sm active:opacity-80 transition shadow-lg flex items-center justify-center space-x-2">
+                        <span>Batch Approve</span>
                     </button>
                 </div>
             `;
@@ -274,12 +294,43 @@
             document.querySelectorAll('.to-checkbox').forEach(cb => cb.checked = source.checked);
         }
 
+        // Logic routing for single and batch actions
+        function getPayloadObject(action, u) {
+            if (action === 'DISAPPROVE') return { status: "DISAPPROVED" }; // Reason added dynamically
+            if (action === 'APPROVE') {
+                if (u.role === "UNIT_HEAD" || u.role === "MARPO") return { status: "PENDING_CHIEF", unithead_signed: u.fullName };
+                if (u.role === "CHIEF") return { status: "PENDING_PARPO", dc_signed: u.fullName };
+                if (u.role === "PARPO") return { status: "APPROVED", parpo_signed: "RICARDO C. GARCIA" };
+            }
+            return {};
+        }
+
+        async function processSingle(to_no, action) {
+            if(action === 'DISAPPROVE') {
+                const reason = prompt("Reason for denial:");
+                if(!reason) return;
+                await processUpdate([to_no], { status: "DISAPPROVED", received: reason });
+            } else {
+                const u = currentUser;
+                if (u.role === "VEHICLE_APPROVER") {
+                    const order = pendingOrders.find(o => o.to_no === to_no);
+                    let new_stat = "PENDING_CHIEF";
+                    if (order.unit === "PARPO") new_stat = "PENDING_PARPO";
+                    else if (order.unit && order.unit !== "NONE") new_stat = "PENDING_UNIT_HEAD";
+                    await processUpdate([to_no], { status: new_stat, received: "VEHICLE_RESERVED" });
+                } else {
+                    const payload = getPayloadObject('APPROVE', u);
+                    await processUpdate([to_no], payload);
+                }
+            }
+        }
+
         async function handleBatchAction(action) {
             const selectedIds = Array.from(document.querySelectorAll('.to-checkbox:checked')).map(cb => cb.value);
             if (selectedIds.length === 0) { alert("Please select at least one Travel Order."); return; }
 
             if (action === 'DISAPPROVE') {
-                const reason = prompt("Reason for disapproval:");
+                const reason = prompt("Reason for denial:");
                 if (!reason) return; 
                 if(confirm(`Deny ${selectedIds.length} request(s)?`)) {
                     processUpdate(selectedIds, { status: "DISAPPROVED", received: reason });
@@ -287,8 +338,6 @@
             } else if (action === 'APPROVE') {
                 if(confirm(`Approve ${selectedIds.length} request(s)?`)) {
                     const u = currentUser;
-                    let payload = {};
-                    
                     if (u.role === "VEHICLE_APPROVER") {
                         for (let to_no of selectedIds) {
                             const order = pendingOrders.find(o => o.to_no === to_no);
@@ -300,10 +349,7 @@
                         loadPendingTab();
                         return;
                     } 
-                    else if (u.role === "UNIT_HEAD" || u.role === "MARPO") payload = { status: "PENDING_CHIEF", unithead_signed: u.fullName };
-                    else if (u.role === "CHIEF") payload = { status: "PENDING_PARPO", dc_signed: u.fullName };
-                    else if (u.role === "PARPO") payload = { status: "APPROVED", parpo_signed: "RICARDO C. GARCIA" };
-
+                    const payload = getPayloadObject('APPROVE', u);
                     processUpdate(selectedIds, payload);
                 }
             }
@@ -311,21 +357,169 @@
 
         async function processUpdate(ids, payload) {
             try {
+                // Must process one by one in basic JS client without RPC
                 for (let id of ids) await supabaseClient.from('travel_orders').update(payload).eq('to_no', id);
                 loadPendingTab();
             } catch (err) { alert("Error: " + err.message); }
         }
 
-        // --- 4. APPROVED TAB (VIEWING DESTINATIONS) ---
-        async function loadApprovedTab() {
+
+        // --- 4. APPROVED / DENIED TAB (FIXED DUPLICATES) ---
+        async function loadStatusTab(status) {
             const content = document.getElementById('mainContent');
             content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-gray-500 font-bold animate-pulse">Loading Records...</p></div>`;
 
             try {
-                // Fetch ONLY Approved
-                const { data: orders, error } = await supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED');
+                const { data: orders, error } = await supabaseClient.from('travel_orders').select('*').eq('status', status);
                 if (error) throw error;
                 
+                const { data: itinRes } = await supabaseClient.from('itinerary').select('*');
+
+                const uRole = currentUser.role;
+                const uDivs = currentUser.divisions;
+                const uUnit = currentUser.unit;
+
+                // Group the data cleanly by TO_NO to prevent duplicates
+                let groupedData = {};
+
+                orders.forEach(o => {
+                    let div = (o.division || "").toUpperCase();
+                    let unit = (o.unit || "").toUpperCase();
+                    
+                    if (uRole !== "PARPO" && uRole !== "VEHICLE_APPROVER") {
+                        if (!uDivs.includes(div)) return;
+                        if ((uRole === "UNIT_HEAD" || uRole === "MARPO") && unit !== uUnit) return;
+                    }
+                    
+                    if (!groupedData[o.to_no]) {
+                        groupedData[o.to_no] = {
+                            to_no: o.to_no,
+                            names: new Set(),
+                            destinations: new Set(),
+                            dates: [],
+                            reason: o.received || 'No reason provided'
+                        };
+                    }
+                    groupedData[o.to_no].names.add(o.emp_name);
+                });
+
+                // Attach itinerary data to the grouped TOs
+                itinRes.forEach(i => {
+                    if (groupedData[i.to_no]) {
+                        if (i.destination) groupedData[i.to_no].destinations.add(i.destination);
+                        if (i.travel_date) groupedData[i.to_no].dates.push(new Date(i.travel_date));
+                    }
+                });
+
+                // Convert object to array for rendering and sort by earliest date
+                let finalArray = Object.values(groupedData).map(item => {
+                    item.dates.sort((a,b) => a - b); // Sort dates chronologically
+                    let dateStr = "No Date";
+                    if (item.dates.length > 0) {
+                        const firstD = item.dates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        if(item.dates.length > 1) {
+                            const lastD = item.dates[item.dates.length-1].toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            dateStr = `${firstD} - ${lastD}`;
+                        } else {
+                            dateStr = firstD;
+                        }
+                    }
+
+                    return {
+                        to_no: item.to_no,
+                        namesArr: Array.from(item.names),
+                        destStr: Array.from(item.destinations).join(', ') || 'Not Specified',
+                        dateDisplay: dateStr,
+                        rawSortDate: item.dates.length > 0 ? item.dates[0] : new Date(0),
+                        reason: item.reason
+                    };
+                });
+
+                finalArray.sort((a, b) => b.rawSortDate - a.rawSortDate); // Newest first
+                
+                if (status === 'APPROVED') { approvedOrders = finalArray; } 
+                else { deniedOrders = finalArray; }
+
+                renderStatusUI(status, finalArray);
+
+            } catch (err) {
+                content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${err.message}</div>`;
+            }
+        }
+
+        function renderStatusUI(status, dataArray) {
+            const content = document.getElementById('mainContent');
+            const isAppr = status === 'APPROVED';
+            
+            if (dataArray.length === 0) {
+                content.innerHTML = `
+                    <div class="flex flex-col justify-center items-center h-full px-6 text-center pt-24">
+                        <div class="w-16 h-16 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-2xl mb-4">📋</div>
+                        <h2 class="text-xl font-bold text-gray-800">No ${isAppr ? 'Approved' : 'Denied'} Orders</h2>
+                        <p class="text-gray-500 text-sm mt-2">Processed orders will appear here.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = `
+                <div class="p-4 sticky top-0 bg-gray-100/95 backdrop-blur z-10 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="font-bold text-sm text-gray-700 uppercase tracking-wider">RECENTLY ${isAppr ? 'APPROVED' : 'DENIED'}</h2>
+                    <button onclick="loadStatusTab('${status}')" class="text-gray-500 active:text-gray-800 p-1">🔄</button>
+                </div>
+                <div class="p-4 space-y-3">
+            `;
+
+            dataArray.forEach(r => {
+                const mainName = r.namesArr[0];
+                const displayName = mainName + (r.namesArr.length > 1 ? ` <span class="text-xs text-gray-500 font-normal ml-1">(+${r.namesArr.length-1})</span>` : '');
+
+                const badge = isAppr 
+                    ? `<span class="inline-block bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Approved</span>`
+                    : `<span class="inline-block bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Denied</span>`;
+
+                html += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border ${isAppr ? 'border-gray-100' : 'border-red-100'}">
+                        <div class="flex justify-between items-start mb-2">
+                            ${badge}
+                            <span class="text-xs font-bold text-gray-400">${r.to_no}</span>
+                        </div>
+                        
+                        <p class="font-bold text-gray-800 leading-tight mb-2">${displayName}</p>
+                        
+                        <div class="bg-gray-50 rounded-xl p-3 flex flex-col space-y-1.5">
+                            <div class="flex items-start">
+                                <span class="text-sm mr-2 mt-0.5">📍</span>
+                                <p class="text-xs text-gray-700 leading-snug">${r.destStr}</p>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="text-sm mr-2">📅</span>
+                                <p class="text-xs font-semibold ${isAppr ? 'text-dar-green' : 'text-gray-600'}">${r.dateDisplay}</p>
+                            </div>
+                        </div>
+                        
+                        ${!isAppr ? `
+                        <div class="mt-3 bg-red-50 border border-red-100 rounded-lg p-2 flex items-start">
+                            <span class="text-xs mr-2 mt-0.5">💬</span>
+                            <p class="text-xs text-red-700 font-semibold italic">Reason: ${r.reason}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            content.innerHTML = html;
+        }
+
+        // --- 5. REPORTS TAB (DAILY, WEEKLY, MONTHLY) ---
+        async function loadReportsTab() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-blue-500 font-bold animate-pulse">Generating Report...</p></div>`;
+
+            try {
+                // Fetch Approved Orders
+                const { data: orders, error } = await supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED');
+                if (error) throw error;
                 const { data: itinRes } = await supabaseClient.from('itinerary').select('*');
 
                 const uRole = currentUser.role;
@@ -338,93 +532,128 @@
                 orders.forEach(o => {
                     let div = (o.division || "").toUpperCase();
                     let unit = (o.unit || "").toUpperCase();
-                    
                     if (uRole !== "PARPO" && uRole !== "VEHICLE_APPROVER") {
                         if (!uDivs.includes(div)) return;
                         if ((uRole === "UNIT_HEAD" || uRole === "MARPO") && unit !== uUnit) return;
                     }
-                    
                     validTos.add(o.to_no);
                     if(!toNames[o.to_no]) toNames[o.to_no] = [];
                     toNames[o.to_no].push(o.emp_name);
                 });
 
-                approvedOrders = [];
-                // Map itineraries to approved TOs
+                // We calculate reports based on individual itinerary dates (to show who is travelling today/this week)
+                reportData = [];
                 itinRes.forEach(i => {
-                    if (validTos.has(i.to_no)) {
-                        approvedOrders.push({
+                    if (validTos.has(i.to_no) && i.travel_date) {
+                        reportData.push({
                             to_no: i.to_no,
-                            date: i.travel_date,
+                            date: new Date(i.travel_date),
                             destination: i.destination || 'Not Specified',
                             names: toNames[i.to_no] || ['Unknown']
                         });
                     }
                 });
 
-                // Sort newest date first
-                approvedOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
+                renderReportsUI();
 
-                renderApprovedUI();
-
-            } catch (err) {
-                content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${err.message}</div>`;
+            } catch(e) {
+                content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${e.message}</div>`;
             }
         }
 
-        function renderApprovedUI() {
-            const content = document.getElementById('mainContent');
+        function filterReportData(filterType) {
+            const today = new Date();
+            today.setHours(0,0,0,0);
             
-            if (approvedOrders.length === 0) {
-                content.innerHTML = `
-                    <div class="flex flex-col justify-center items-center h-full px-6 text-center pt-24">
-                        <div class="w-16 h-16 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-2xl mb-4">📋</div>
-                        <h2 class="text-xl font-bold text-gray-800">No Approved Orders</h2>
-                        <p class="text-gray-500 text-sm mt-2">Approved travel orders for your division will appear here.</p>
-                    </div>`;
-                return;
-            }
+            return reportData.filter(r => {
+                const d = new Date(r.date);
+                d.setHours(0,0,0,0);
+
+                if (filterType === 'day') {
+                    return d.getTime() === today.getTime();
+                } 
+                else if (filterType === 'week') {
+                    // Current week (Sunday to Saturday)
+                    const startOfWeek = new Date(today);
+                    startOfWeek.setDate(today.getDate() - today.getDay());
+                    const endOfWeek = new Date(startOfWeek);
+                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+                    return d >= startOfWeek && d <= endOfWeek;
+                } 
+                else if (filterType === 'month') {
+                    return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+                }
+            }).sort((a, b) => b.date - a.date);
+        }
+
+        function setReportFilter(val) {
+            reportFilter = val;
+            renderReportsUI();
+        }
+
+        function renderReportsUI() {
+            const content = document.getElementById('mainContent');
+            const filteredData = filterReportData(reportFilter);
 
             let html = `
-                <div class="p-4 sticky top-0 bg-gray-100/95 backdrop-blur z-10 border-b border-gray-200 flex justify-between items-center">
-                    <h2 class="font-bold text-sm text-gray-700">RECENTLY APPROVED</h2>
-                    <button onclick="loadApprovedTab()" class="text-gray-500 active:text-gray-800 p-1">🔄</button>
+                <div class="sticky top-0 bg-gray-100 z-10 pt-4 px-4 pb-2 border-b border-gray-200">
+                    <h2 class="font-bold text-lg text-blue-800 mb-3 text-center">Analytics Dashboard</h2>
+                    
+                    <div class="flex bg-gray-200 rounded-xl p-1 mb-2 shadow-inner">
+                        <button onclick="setReportFilter('day')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'day' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Today</button>
+                        <button onclick="setReportFilter('week')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'week' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">This Week</button>
+                        <button onclick="setReportFilter('month')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">This Month</button>
+                    </div>
                 </div>
-                <div class="p-4 space-y-3">
             `;
 
-            approvedOrders.forEach(r => {
-                const dObj = new Date(r.date);
-                const displayDate = dObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                
-                // Format names cleanly
-                const mainName = r.names[0];
-                const displayName = mainName + (r.names.length > 1 ? ` <span class="text-xs text-gray-500 font-normal ml-1">(+${r.names.length-1})</span>` : '');
-
+            if (filteredData.length === 0) {
                 html += `
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="inline-block bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Approved</span>
-                            <span class="text-xs font-bold text-gray-400">${r.to_no}</span>
-                        </div>
-                        
-                        <p class="font-bold text-gray-800 leading-tight mb-2">${displayName}</p>
-                        
-                        <div class="bg-gray-50 rounded-xl p-3 flex flex-col space-y-1.5">
-                            <div class="flex items-start">
-                                <span class="text-sm mr-2 mt-0.5">📍</span>
-                                <p class="text-sm text-gray-700 leading-snug">${r.destination}</p>
-                            </div>
-                            <div class="flex items-center">
-                                <span class="text-sm mr-2">📅</span>
-                                <p class="text-sm font-semibold text-dar-green">${displayDate}</p>
-                            </div>
-                        </div>
+                    <div class="flex flex-col justify-center items-center h-64 text-center px-6">
+                        <span class="text-4xl opacity-50 mb-3">📭</span>
+                        <p class="text-gray-500 font-semibold">No travels scheduled for this period.</p>
                     </div>
                 `;
-            });
+            } else {
+                html += `<div class="p-4 space-y-3 pb-24">`;
+                
+                // Group by date for cleaner display in week/month views
+                let datesGrouped = {};
+                filteredData.forEach(r => {
+                    const dStr = r.date.toDateString();
+                    if(!datesGrouped[dStr]) datesGrouped[dStr] = [];
+                    
+                    // Prevent duplicate display of the same TO on the exact same day
+                    if(!datesGrouped[dStr].find(x => x.to_no === r.to_no)) {
+                        datesGrouped[dStr].push(r);
+                    }
+                });
 
-            html += `</div>`;
+                for (const [dateStr, records] of Object.entries(datesGrouped)) {
+                    const dObj = new Date(dateStr);
+                    const isToday = dObj.toDateString() === new Date().toDateString();
+                    const label = isToday ? '🎯 TODAY' : dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+                    html += `<h3 class="font-bold text-xs text-blue-700 border-b border-blue-200 pb-1 mt-4 mb-2 uppercase">${label}</h3>`;
+
+                    records.forEach(r => {
+                        const displayName = r.names[0] + (r.names.length > 1 ? ` (+${r.names.length-1})` : '');
+                        html += `
+                            <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 border-blue-400 flex justify-between items-center mb-2">
+                                <div class="w-2/3 pr-2">
+                                    <p class="font-bold text-sm text-gray-800 truncate">${displayName}</p>
+                                    <p class="text-[10px] text-gray-400 font-mono mt-0.5">${r.to_no}</p>
+                                </div>
+                                <div class="w-1/3 text-right">
+                                    <p class="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block truncate max-w-full">📍 ${r.destination}</p>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                html += `</div>`;
+            }
+
             content.innerHTML = html;
         }
 
