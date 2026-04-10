@@ -2,87 +2,77 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DAR CAM SUR 1 - ADMIN CONSOLE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DAR Approval Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* Custom Theme Colors mapped from your Python config */
-        .bg-dar-green { background-color: #003811; }
-        .bg-dar-light { background-color: #006400; }
+        .dar-green { background-color: #003811; }
+        .text-dar-green { color: #003811; }
+        .dar-gold { background-color: #D4AF37; }
         .text-dar-gold { color: #D4AF37; }
-        .bg-dar-gold { background-color: #D4AF37; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F3F4F6; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; }
+        /* Hide scrollbar for a cleaner mobile experience */
+        ::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="h-screen w-full text-gray-800 flex overflow-hidden">
+<body class="h-screen w-full flex flex-col overflow-hidden text-gray-800">
 
-    <div id="app" class="w-full h-full flex"></div>
+    <div id="app" class="w-full h-full flex flex-col relative"></div>
 
     <script>
-        // --- CLOUD CONFIG (SUPABASE) ---
+        // --- SUPABASE CONFIG ---
         const SUPABASE_URL = "https://ytfpiyfapvybihlngxks.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0ZnBpeWZhcHZ5YmlobG5neGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMDA2MTIsImV4cCI6MjA4NTY3NjYxMn0.7TRVjvFjxVtxkP_hL3wnlxPT6FXJd0y7aKHNzDHThAQ";
-        
-        const { createClient } = supabase;
-        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // State Management
+        // --- APP STATE ---
         let currentUser = null;
+        let currentTab = 'pending'; // 'pending' or 'approved'
         let pendingOrders = [];
+        let approvedOrders = [];
+        let itineraries = [];
 
-        // DOM Elements
         const appDiv = document.getElementById('app');
 
-        // --- UI ROUTER ---
+        // --- CORE ROUTER ---
         function render() {
-            if (!currentUser) {
-                renderLogin();
-            } else {
-                renderDashboard();
-            }
+            if (!currentUser) renderLogin();
+            else renderMain();
         }
 
-        // --- LOGIN VIEW ---
+        // --- 1. LOGIN SCREEN ---
         function renderLogin() {
             appDiv.innerHTML = `
-                <div class="flex w-full h-full">
-                    <div class="bg-dar-green w-1/3 flex flex-col justify-center items-center text-center px-8 shadow-xl z-10">
-                        <p class="text-dar-gold font-semibold tracking-widest text-sm mb-4">REPUBLIC OF THE PHILIPPINES</p>
-                        <h1 class="text-white text-3xl font-bold font-serif mb-1">DEPARTMENT OF</h1>
-                        <h1 class="text-white text-3xl font-bold font-serif mb-6">AGRARIAN REFORM</h1>
-                        <p class="text-slate-300 text-lg">Admin & Approval Console</p>
-                    </div>
-
-                    <div class="w-2/3 flex justify-center items-center bg-gray-100">
-                        <div class="bg-white p-10 rounded shadow-lg w-96 relative overflow-hidden">
-                            <div class="absolute top-0 left-0 w-full h-1 bg-dar-gold"></div>
-                            <h2 class="text-2xl font-bold text-[#003811] mb-1">SECURE LOGIN</h2>
-                            <p class="text-gray-500 text-sm mb-6">Enter credentials to access dashboard</p>
+                <div class="flex-grow flex flex-col justify-center items-center px-6 dar-green relative">
+                    <div class="z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+                        <div class="dar-gold h-2 w-full"></div>
+                        <div class="p-8 text-center">
+                            <h1 class="text-dar-green font-bold text-3xl font-serif mb-1">DAR</h1>
+                            <p class="text-xs text-gray-500 font-bold tracking-widest mb-6 uppercase">Cam Sur 1 Console</p>
                             
-                            <div class="mb-4">
-                                <label class="block text-sm font-bold text-gray-700 mb-1">Username</label>
-                                <input type="text" id="username" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#003811]" autocomplete="off">
+                            <div class="space-y-4 text-left">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 mb-1">USERNAME</label>
+                                    <input type="text" id="username" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-800" autocomplete="off">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 mb-1">PASSWORD</label>
+                                    <input type="password" id="password" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-800">
+                                </div>
+                                
+                                <p id="loginError" class="text-red-600 text-xs font-bold text-center hidden"></p>
+                                
+                                <button onclick="handleLogin()" id="loginBtn" class="w-full mt-2 dar-green text-white font-bold py-3.5 rounded-xl active:opacity-80 transition-opacity shadow-lg">
+                                    LOG IN
+                                </button>
                             </div>
-                            <div class="mb-6">
-                                <label class="block text-sm font-bold text-gray-700 mb-1">Password</label>
-                                <input type="password" id="password" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#003811]">
-                            </div>
-                            
-                            <p id="loginError" class="text-red-600 text-xs font-bold mb-4 hidden"></p>
-                            
-                            <button onclick="handleLogin()" id="loginBtn" class="w-full bg-dar-green text-white font-bold py-3 rounded hover:bg-green-900 transition duration-200">
-                                ACCESS DASHBOARD
-                            </button>
                         </div>
                     </div>
                 </div>
             `;
             
-            // Add Enter key listener
-            document.getElementById('password').addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') handleLogin();
-            });
+            document.getElementById('password').addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
         }
 
         async function handleLogin() {
@@ -91,22 +81,15 @@
             const errLbl = document.getElementById('loginError');
             const btn = document.getElementById('loginBtn');
 
-            if(!userBox || !passBox) {
-                errLbl.innerText = "Please enter both fields.";
-                errLbl.classList.remove("hidden");
-                return;
-            }
+            if(!userBox || !passBox) { errLbl.innerText = "Enter both fields."; errLbl.classList.remove("hidden"); return; }
 
-            btn.innerText = "CONNECTING...";
-            btn.disabled = true;
+            btn.innerText = "AUTHENTICATING..."; btn.disabled = true;
 
             try {
                 const { data: users, error } = await supabaseClient.from('users').select('*');
-                
                 if (error) throw error;
 
                 const user = users.find(u => u.username === userBox && u.password === passBox);
-
                 if (user) {
                     currentUser = {
                         username: user.username,
@@ -117,159 +100,332 @@
                     };
                     render();
                 } else {
-                    errLbl.innerText = "Invalid Username or Password";
-                    errLbl.classList.remove("hidden");
+                    errLbl.innerText = "Invalid credentials."; errLbl.classList.remove("hidden");
                 }
             } catch (err) {
-                errLbl.innerText = "Connection Error: " + err.message;
-                errLbl.classList.remove("hidden");
+                errLbl.innerText = "Network Error."; errLbl.classList.remove("hidden");
             } finally {
-                btn.innerText = "ACCESS DASHBOARD";
-                btn.disabled = false;
+                btn.innerText = "LOG IN"; btn.disabled = false;
             }
         }
 
-        function logout() {
-            currentUser = null;
-            render();
-        }
+        function logout() { currentUser = null; render(); }
 
-        // --- DASHBOARD VIEW ---
-        function renderDashboard() {
-            const displayDiv = currentUser.divisions.join(", ") || "N/A";
-            
+        // --- 2. MAIN APP SHELL ---
+        function renderMain() {
             appDiv.innerHTML = `
-                <div class="bg-dar-green w-64 flex flex-col h-full text-white shadow-xl z-20">
-                    <div class="py-8 text-center border-b border-green-800">
-                        <h2 class="text-dar-gold font-bold text-xl font-serif">DAR CAM SUR 1</h2>
-                        <p class="text-xs text-gray-300 tracking-wider mt-1">ADMINISTRATION</p>
+                <header class="dar-green text-white px-5 py-4 flex justify-between items-center shadow-md z-20">
+                    <div class="overflow-hidden">
+                        <h1 class="font-bold text-lg leading-tight truncate whitespace-nowrap">${currentUser.fullName}</h1>
+                        <p class="text-xs text-dar-gold tracking-wide">${currentUser.role}</p>
                     </div>
-                    
-                    <div class="bg-[#052e16] p-4 mb-4">
-                        <p class="font-bold text-sm truncate">${currentUser.fullName.toUpperCase()}</p>
-                        <p class="text-xs text-dar-gold truncate">${currentUser.role} - ${displayDiv}</p>
-                    </div>
+                    <button onclick="logout()" class="ml-4 text-xs bg-white bg-opacity-20 px-3 py-1.5 rounded-full font-bold active:bg-opacity-30">Logout</button>
+                </header>
 
-                    <div class="flex-grow">
-                        <button class="w-full text-left px-6 py-3 bg-dar-light text-dar-gold font-bold border-l-4 border-dar-gold flex items-center">
-                            <span class="mr-3">📥</span> APPROVAL INBOX
-                        </button>
-                    </div>
+                <main id="mainContent" class="flex-grow overflow-y-auto bg-gray-100 relative pb-32"></main>
 
-                    <div class="mb-4">
-                        <button onclick="logout()" class="w-full text-left px-6 py-3 text-red-400 hover:bg-red-900 hover:text-white transition text-sm font-bold flex items-center">
-                            <span class="mr-3">🚪</span> LOG OUT
-                        </button>
-                    </div>
-                </div>
-
-                <div class="flex-grow bg-gray-100 flex flex-col h-full overflow-hidden">
-                    <div class="p-8 pb-4">
-                        <h1 class="text-3xl font-bold text-dar-green mb-6">Approval Inbox</h1>
-                        
-                        <div class="bg-white rounded shadow p-6 flex flex-col h-full">
-                            <div class="flex justify-between items-center mb-4 border-b pb-4">
-                                <div>
-                                    <h3 class="font-semibold text-dar-green text-lg">PENDING REQUESTS</h3>
-                                </div>
-                                <div class="flex space-x-2">
-                                    <button onclick="fetchApprovals()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 font-semibold text-sm transition">
-                                        🔄 Refresh Data
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="overflow-auto flex-grow rounded border" style="max-height: calc(100vh - 250px);">
-                                <table class="min-w-full text-left text-sm whitespace-nowrap">
-                                    <thead class="bg-dar-green text-white sticky top-0 z-10">
-                                        <tr>
-                                            <th class="px-4 py-3 font-semibold">TO No</th>
-                                            <th class="px-4 py-3 font-semibold">Employee</th>
-                                            <th class="px-4 py-3 font-semibold">Unit</th>
-                                            <th class="px-4 py-3 font-semibold">Status</th>
-                                            <th class="px-4 py-3 font-semibold">Transport</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="approvalTableBody" class="divide-y divide-gray-200 bg-white">
-                                        <tr><td colspan="5" class="text-center py-4 text-gray-500 italic">Loading requests...</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <nav class="bg-white border-t border-gray-200 flex h-16 w-full fixed bottom-0 z-30 pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                    <button onclick="switchTab('pending')" class="flex flex-col items-center justify-center w-1/2 h-full ${currentTab === 'pending' ? 'text-dar-green font-bold' : 'text-gray-400'} relative">
+                        ${currentTab === 'pending' ? '<div class="absolute top-0 w-1/2 h-1 dar-green rounded-b-full"></div>' : ''}
+                        <span class="text-xl mb-0.5">📥</span>
+                        <span class="text-[10px] uppercase tracking-wider">Pending</span>
+                    </button>
+                    <button onclick="switchTab('approved')" class="flex flex-col items-center justify-center w-1/2 h-full ${currentTab === 'approved' ? 'text-dar-green font-bold' : 'text-gray-400'} relative">
+                        ${currentTab === 'approved' ? '<div class="absolute top-0 w-1/2 h-1 dar-green rounded-b-full"></div>' : ''}
+                        <span class="text-xl mb-0.5">✅</span>
+                        <span class="text-[10px] uppercase tracking-wider">Approved</span>
+                    </button>
+                </nav>
             `;
             
-            fetchApprovals();
+            if (currentTab === 'pending') loadPendingTab();
+            else loadApprovedTab();
         }
 
-        // --- DATA FETCHING ---
-        async function fetchApprovals() {
-            const tbody = document.getElementById('approvalTableBody');
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500 font-semibold">Fetching records from database...</td></tr>`;
+        function switchTab(tab) {
+            currentTab = tab;
+            renderMain();
+        }
+
+        // --- 3. PENDING TAB (BATCH APPROVAL) ---
+        async function loadPendingTab() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-gray-500 font-bold animate-pulse">Syncing Inbox...</p></div>`;
 
             try {
-                // Fetch basic TOs
-                const { data: orders, error } = await supabaseClient.from('travel_orders').select('*');
-                if (error) throw error;
+                const [ordersRes, itinRes] = await Promise.all([
+                    supabaseClient.from('travel_orders').select('*'),
+                    supabaseClient.from('itinerary').select('*')
+                ]);
 
-                const myRole = currentUser.role;
-                const myDivs = currentUser.divisions;
-                const myUnit = currentUser.unit;
+                const orders = ordersRes.data || [];
+                itineraries = itinRes.data || [];
 
-                // Replicate Tkinter filtering logic
-                let filteredOrders = [];
-
+                let groupedOrders = {};
                 orders.forEach(o => {
-                    const unit = (o.unit || "").trim().toUpperCase();
-                    const stat = (o.status || "").trim().toUpperCase();
-                    const div = (o.division || "").trim().toUpperCase();
-                    const transport = (o.transport || "").trim().toUpperCase();
-                    
+                    if (!groupedOrders[o.to_no]) groupedOrders[o.to_no] = [];
+                    groupedOrders[o.to_no].push(o);
+                });
+
+                pendingOrders = [];
+                const uRole = currentUser.role;
+                const uDivs = currentUser.divisions;
+                const uUnit = currentUser.unit;
+
+                for (const [to_no, group] of Object.entries(groupedOrders)) {
+                    const first = group[0];
+                    const unit = (first.unit || "").trim().toUpperCase();
+                    const stat = (first.status || "").trim().toUpperCase();
+                    const div = (first.division || "").trim().toUpperCase();
+                    const transport = (first.transport || "").trim().toUpperCase();
+
                     let show = false;
-                    if (myRole === "VEHICLE_APPROVER") {
+                    if (uRole === "VEHICLE_APPROVER") {
                         if (stat === "PENDING_VEHICLE_RESERVATION" && transport === "GOV'T VEHICLE") show = true;
-                    } else if (myRole === "UNIT_HEAD" || myRole === "MARPO") {
-                        if (stat === "PENDING_UNIT_HEAD" && myDivs.includes(div) && unit === myUnit) show = true;
-                    } else if (myRole === "CHIEF") {
-                        if (stat === "PENDING_CHIEF" && myDivs.includes(div)) show = true;
-                    } else if (myRole === "PARPO") {
+                    } else if (uRole === "UNIT_HEAD" || uRole === "MARPO") {
+                        if (stat === "PENDING_UNIT_HEAD" && uDivs.includes(div) && unit === uUnit) show = true;
+                    } else if (uRole === "CHIEF") {
+                        if (stat === "PENDING_CHIEF" && uDivs.includes(div)) show = true;
+                    } else if (uRole === "PARPO") {
                         if (stat === "PENDING_PARPO") show = true;
                     }
 
                     if (show) {
-                        filteredOrders.push(o);
+                        let dests = new Set();
+                        let names = group.map(g => g.emp_name);
+                        let itins = itineraries.filter(i => i.to_no === to_no);
+                        itins.forEach(i => { if(i.destination) dests.add(i.destination); });
+
+                        pendingOrders.push({
+                            to_no: to_no,
+                            names: names,
+                            destinations: Array.from(dests).join(', ') || 'N/A',
+                            unit: unit
+                        });
+                    }
+                }
+
+                renderPendingUI();
+
+            } catch (err) {
+                content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${err.message}</div>`;
+            }
+        }
+
+        function renderPendingUI() {
+            const content = document.getElementById('mainContent');
+            
+            if (pendingOrders.length === 0) {
+                content.innerHTML = `
+                    <div class="flex flex-col justify-center items-center h-full px-6 text-center pt-24">
+                        <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mb-4">✨</div>
+                        <h2 class="text-xl font-bold text-gray-800">All caught up!</h2>
+                        <p class="text-gray-500 text-sm mt-2">There are no pending requests requiring your approval.</p>
+                        <button onclick="loadPendingTab()" class="mt-6 px-6 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-full shadow-sm active:bg-gray-50">Refresh Inbox</button>
+                    </div>`;
+                return;
+            }
+
+            let html = `
+                <div class="p-4 flex justify-between items-center sticky top-0 bg-gray-100/95 backdrop-blur z-10 border-b border-gray-200">
+                    <label class="flex items-center space-x-3 text-sm font-bold text-gray-700 active:opacity-70">
+                        <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" class="w-5 h-5 rounded border-gray-300 text-dar-green focus:ring-dar-green">
+                        <span>SELECT ALL (${pendingOrders.length})</span>
+                    </label>
+                    <button onclick="loadPendingTab()" class="text-gray-500 active:text-gray-800 p-1">🔄</button>
+                </div>
+                <div class="p-4 space-y-3 pb-24">
+            `;
+
+            pendingOrders.forEach(o => {
+                const displayName = o.names[0] + (o.names.length > 1 ? ` <span class="text-[10px] text-white bg-green-600 px-1.5 py-0.5 rounded-full font-bold relative -top-0.5">+${o.names.length-1}</span>` : '');
+                
+                html += `
+                    <label class="block bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-start space-x-4 active:bg-gray-50 transition cursor-pointer">
+                        <div class="pt-1">
+                            <input type="checkbox" value="${o.to_no}" class="to-checkbox w-6 h-6 rounded-md border-gray-300 text-dar-green focus:ring-dar-green shadow-sm">
+                        </div>
+                        <div class="flex-grow overflow-hidden">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="font-bold text-xs text-gray-400 tracking-wider">${o.to_no}</span>
+                            </div>
+                            <p class="font-bold text-gray-800 leading-tight mb-1">${displayName}</p>
+                            <p class="text-xs text-gray-600 truncate flex items-center"><span class="mr-1">📍</span> ${o.destinations}</p>
+                        </div>
+                    </label>
+                `;
+            });
+
+            html += `</div>
+                <div class="fixed bottom-16 left-0 w-full bg-white/90 backdrop-blur border-t border-gray-200 p-3 flex justify-between space-x-3 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-20">
+                    <button onclick="handleBatchAction('DISAPPROVE')" class="w-1/3 bg-red-50 text-red-600 font-bold py-3.5 rounded-xl text-sm active:bg-red-100 transition border border-red-100">
+                        Deny
+                    </button>
+                    <button onclick="handleBatchAction('APPROVE')" class="w-2/3 dar-green text-white font-bold py-3.5 rounded-xl text-sm active:opacity-80 transition shadow-lg flex items-center justify-center space-x-2">
+                        <span>Approve Selected</span>
+                    </button>
+                </div>
+            `;
+            
+            content.innerHTML = html;
+        }
+
+        function toggleSelectAll(source) {
+            document.querySelectorAll('.to-checkbox').forEach(cb => cb.checked = source.checked);
+        }
+
+        async function handleBatchAction(action) {
+            const selectedIds = Array.from(document.querySelectorAll('.to-checkbox:checked')).map(cb => cb.value);
+            if (selectedIds.length === 0) { alert("Please select at least one Travel Order."); return; }
+
+            if (action === 'DISAPPROVE') {
+                const reason = prompt("Reason for disapproval:");
+                if (!reason) return; 
+                if(confirm(`Deny ${selectedIds.length} request(s)?`)) {
+                    processUpdate(selectedIds, { status: "DISAPPROVED", received: reason });
+                }
+            } else if (action === 'APPROVE') {
+                if(confirm(`Approve ${selectedIds.length} request(s)?`)) {
+                    const u = currentUser;
+                    let payload = {};
+                    
+                    if (u.role === "VEHICLE_APPROVER") {
+                        for (let to_no of selectedIds) {
+                            const order = pendingOrders.find(o => o.to_no === to_no);
+                            let new_stat = "PENDING_CHIEF";
+                            if (order.unit === "PARPO") new_stat = "PENDING_PARPO";
+                            else if (order.unit && order.unit !== "NONE") new_stat = "PENDING_UNIT_HEAD";
+                            await supabaseClient.from('travel_orders').update({ status: new_stat, received: "VEHICLE_RESERVED" }).eq('to_no', to_no);
+                        }
+                        loadPendingTab();
+                        return;
+                    } 
+                    else if (u.role === "UNIT_HEAD" || u.role === "MARPO") payload = { status: "PENDING_CHIEF", unithead_signed: u.fullName };
+                    else if (u.role === "CHIEF") payload = { status: "PENDING_PARPO", dc_signed: u.fullName };
+                    else if (u.role === "PARPO") payload = { status: "APPROVED", parpo_signed: "RICARDO C. GARCIA" };
+
+                    processUpdate(selectedIds, payload);
+                }
+            }
+        }
+
+        async function processUpdate(ids, payload) {
+            try {
+                for (let id of ids) await supabaseClient.from('travel_orders').update(payload).eq('to_no', id);
+                loadPendingTab();
+            } catch (err) { alert("Error: " + err.message); }
+        }
+
+        // --- 4. APPROVED TAB (VIEWING DESTINATIONS) ---
+        async function loadApprovedTab() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-gray-500 font-bold animate-pulse">Loading Records...</p></div>`;
+
+            try {
+                // Fetch ONLY Approved
+                const { data: orders, error } = await supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED');
+                if (error) throw error;
+                
+                const { data: itinRes } = await supabaseClient.from('itinerary').select('*');
+
+                const uRole = currentUser.role;
+                const uDivs = currentUser.divisions;
+                const uUnit = currentUser.unit;
+
+                let validTos = new Set();
+                let toNames = {};
+
+                orders.forEach(o => {
+                    let div = (o.division || "").toUpperCase();
+                    let unit = (o.unit || "").toUpperCase();
+                    
+                    if (uRole !== "PARPO" && uRole !== "VEHICLE_APPROVER") {
+                        if (!uDivs.includes(div)) return;
+                        if ((uRole === "UNIT_HEAD" || uRole === "MARPO") && unit !== uUnit) return;
+                    }
+                    
+                    validTos.add(o.to_no);
+                    if(!toNames[o.to_no]) toNames[o.to_no] = [];
+                    toNames[o.to_no].push(o.emp_name);
+                });
+
+                approvedOrders = [];
+                // Map itineraries to approved TOs
+                itinRes.forEach(i => {
+                    if (validTos.has(i.to_no)) {
+                        approvedOrders.push({
+                            to_no: i.to_no,
+                            date: i.travel_date,
+                            destination: i.destination || 'Not Specified',
+                            names: toNames[i.to_no] || ['Unknown']
+                        });
                     }
                 });
 
-                if (filteredOrders.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500 italic">No pending requests for your role.</td></tr>`;
-                    return;
-                }
+                // Sort newest date first
+                approvedOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                // Render Table
-                let html = '';
-                filteredOrders.forEach((o, index) => {
-                    const bgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-                    html += `
-                        <tr class="${bgClass} hover:bg-green-50 transition cursor-pointer">
-                            <td class="px-4 py-3 font-semibold text-gray-800">${o.to_no || 'N/A'}</td>
-                            <td class="px-4 py-3">${o.emp_name || 'Unknown'}</td>
-                            <td class="px-4 py-3 text-gray-600">${o.unit || 'N/A'}</td>
-                            <td class="px-4 py-3">
-                                <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded">${o.status}</span>
-                            </td>
-                            <td class="px-4 py-3 text-gray-600">${o.transport || 'N/A'}</td>
-                        </tr>
-                    `;
-                });
-
-                tbody.innerHTML = html;
+                renderApprovedUI();
 
             } catch (err) {
-                console.error(err);
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-red-500 font-bold">Error loading data: ${err.message}</td></tr>`;
+                content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${err.message}</div>`;
             }
+        }
+
+        function renderApprovedUI() {
+            const content = document.getElementById('mainContent');
+            
+            if (approvedOrders.length === 0) {
+                content.innerHTML = `
+                    <div class="flex flex-col justify-center items-center h-full px-6 text-center pt-24">
+                        <div class="w-16 h-16 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-2xl mb-4">📋</div>
+                        <h2 class="text-xl font-bold text-gray-800">No Approved Orders</h2>
+                        <p class="text-gray-500 text-sm mt-2">Approved travel orders for your division will appear here.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = `
+                <div class="p-4 sticky top-0 bg-gray-100/95 backdrop-blur z-10 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="font-bold text-sm text-gray-700">RECENTLY APPROVED</h2>
+                    <button onclick="loadApprovedTab()" class="text-gray-500 active:text-gray-800 p-1">🔄</button>
+                </div>
+                <div class="p-4 space-y-3">
+            `;
+
+            approvedOrders.forEach(r => {
+                const dObj = new Date(r.date);
+                const displayDate = dObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                
+                // Format names cleanly
+                const mainName = r.names[0];
+                const displayName = mainName + (r.names.length > 1 ? ` <span class="text-xs text-gray-500 font-normal ml-1">(+${r.names.length-1})</span>` : '');
+
+                html += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="inline-block bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Approved</span>
+                            <span class="text-xs font-bold text-gray-400">${r.to_no}</span>
+                        </div>
+                        
+                        <p class="font-bold text-gray-800 leading-tight mb-2">${displayName}</p>
+                        
+                        <div class="bg-gray-50 rounded-xl p-3 flex flex-col space-y-1.5">
+                            <div class="flex items-start">
+                                <span class="text-sm mr-2 mt-0.5">📍</span>
+                                <p class="text-sm text-gray-700 leading-snug">${r.destination}</p>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="text-sm mr-2">📅</span>
+                                <p class="text-sm font-semibold text-dar-green">${displayDate}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            content.innerHTML = html;
         }
 
         // Initialize App
