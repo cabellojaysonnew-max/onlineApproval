@@ -2,28 +2,70 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DAR Approval Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>DAR Console</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="DAR Console">
+    <meta name="theme-color" content="#003811">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <link id="pwa-manifest" rel="manifest">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <style>
         .dar-green { background-color: #003811; }
         .text-dar-green { color: #003811; }
         .dar-gold { background-color: #D4AF37; }
         .text-dar-gold { color: #D4AF37; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; }
+        
+        /* Mobile optimizations */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #f3f4f6; 
+            -webkit-tap-highlight-color: transparent; 
+            overscroll-behavior-y: none; /* Prevents pull-to-refresh rubber banding */
+        }
+        
+        /* Hide scrollbars for cleaner UI */
         ::-webkit-scrollbar { display: none; }
         
         /* Modal Animation */
         .modal-fade { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Safe Area Paddings for modern iPhones */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
-<body class="h-screen w-full flex flex-col overflow-hidden text-gray-800">
+<body class="h-screen w-full overflow-hidden text-gray-800">
 
-    <div id="app" class="w-full h-full flex flex-col relative"></div>
+    <div id="app" class="w-full h-full relative bg-gray-100"></div>
 
     <script>
+        // --- INJECT PWA MANIFEST DYNAMICALLY ---
+        const manifestData = {
+            "name": "DAR Cam Sur 1 Console",
+            "short_name": "DAR Console",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#F3F4F6",
+            "theme_color": "#003811",
+            "icons": [{
+                "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzAwMzgxMSIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iI0Q0QUYzNyI+RDwvdGV4dD48L3N2Zz4=",
+                "sizes": "192x192",
+                "type": "image/svg+xml"
+            }]
+        };
+        document.getElementById('pwa-manifest').setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestData)));
+
         // --- SUPABASE CONFIG ---
         const SUPABASE_URL = "https://ytfpiyfapvybihlngxks.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0ZnBpeWZhcHZ5YmlobG5neGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMDA2MTIsImV4cCI6MjA4NTY3NjYxMn0.7TRVjvFjxVtxkP_hL3wnlxPT6FXJd0y7aKHNzDHThAQ";
@@ -31,15 +73,14 @@
 
         // --- APP STATE ---
         let currentUser = null;
-        let currentTab = 'pending'; // 'pending', 'approved', 'denied', 'reports'
-        let reportFilter = 'day'; // 'day', 'week', 'month'
+        let currentTab = 'pending'; 
+        let reportFilter = 'day'; 
         
         let pendingOrders = [];
         let reportData = [];
 
         const appDiv = document.getElementById('app');
 
-        // --- CORE ROUTER ---
         function render() {
             if (!currentUser) renderLogin();
             else renderMain();
@@ -48,7 +89,7 @@
         // --- 1. LOGIN SCREEN ---
         function renderLogin() {
             appDiv.innerHTML = `
-                <div class="flex-grow flex flex-col justify-center items-center px-6 dar-green relative">
+                <div class="absolute inset-0 flex flex-col justify-center items-center px-6 dar-green">
                     <div class="z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
                         <div class="dar-gold h-2 w-full"></div>
                         <div class="p-8 text-center">
@@ -75,7 +116,6 @@
                     </div>
                 </div>
             `;
-            
             document.getElementById('password').addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
         }
 
@@ -86,10 +126,10 @@
             const btn = document.getElementById('loginBtn');
 
             if(!userBox || !passBox) { errLbl.innerText = "Enter both fields."; errLbl.classList.remove("hidden"); return; }
-
             btn.innerText = "AUTHENTICATING..."; btn.disabled = true;
 
             try {
+                // Ensure fresh authentication
                 const { data: users, error } = await supabaseClient.from('users').select('*');
                 if (error) throw error;
 
@@ -115,10 +155,10 @@
 
         function logout() { currentUser = null; render(); }
 
-        // --- 2. MAIN APP SHELL ---
+        // --- 2. MAIN APP SHELL (LOCKED HEADER/FOOTER) ---
         function renderMain() {
             appDiv.innerHTML = `
-                <header class="dar-green text-white px-5 py-4 flex justify-between items-center shadow-md z-20">
+                <header class="absolute top-0 left-0 w-full h-16 dar-green text-white px-5 flex justify-between items-center shadow-md z-50">
                     <div class="overflow-hidden">
                         <h1 class="font-bold text-lg leading-tight truncate whitespace-nowrap">${currentUser.fullName}</h1>
                         <p class="text-xs text-dar-gold tracking-wide">${currentUser.role}</p>
@@ -129,9 +169,9 @@
                     </div>
                 </header>
 
-                <main id="mainContent" class="flex-grow overflow-y-auto bg-gray-100 relative pb-40"></main>
+                <main id="mainContent" class="absolute top-16 bottom-16 left-0 w-full overflow-y-auto bg-gray-100 z-10 scroll-smooth"></main>
 
-                <nav class="bg-white border-t border-gray-200 flex h-16 w-full fixed bottom-0 z-30 pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                <nav class="absolute bottom-0 left-0 w-full h-16 bg-white border-t border-gray-200 flex z-50 pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
                     <button onclick="switchTab('pending')" class="flex flex-col items-center justify-center w-1/4 h-full ${currentTab === 'pending' ? 'text-dar-green font-bold' : 'text-gray-400'} relative">
                         ${currentTab === 'pending' ? '<div class="absolute top-0 w-1/2 h-1 dar-green rounded-b-full"></div>' : ''}
                         <span class="text-xl mb-0.5">📥</span>
@@ -154,11 +194,11 @@
                     </button>
                 </nav>
 
-                <div id="pwdModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center px-4 modal-fade">
+                <div id="pwdModal" class="hidden absolute inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center px-4 modal-fade">
                     <div class="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl">
                         <div class="dar-green text-white p-4 font-bold text-center relative">
                             Change Password
-                            <button onclick="hideChangePassword()" class="absolute right-4 top-4 text-white opacity-70 hover:opacity-100">✕</button>
+                            <button onclick="hideChangePassword()" class="absolute right-4 top-4 text-white opacity-70 hover:opacity-100 text-xl leading-none">✕</button>
                         </div>
                         <div class="p-6 space-y-4">
                             <div>
@@ -202,24 +242,18 @@
             if(!oldP || !newP) return alert("Please fill all fields.");
 
             try {
-                // Verify old password
                 const { data: userRecord, error } = await supabaseClient.from('users').select('password').eq('username', currentUser.username).single();
-                if (error || !userRecord || userRecord.password !== oldP) {
-                    return alert("Incorrect current password.");
-                }
+                if (error || !userRecord || userRecord.password !== oldP) return alert("Incorrect current password.");
 
-                // Update
                 const { error: updError } = await supabaseClient.from('users').update({ password: newP }).eq('username', currentUser.username);
                 if (updError) throw updError;
 
                 alert("Password successfully updated!");
                 hideChangePassword();
-            } catch (err) {
-                alert("Error updating password: " + err.message);
-            }
+            } catch (err) { alert("Error updating password: " + err.message); }
         }
 
-        // --- 3. PENDING TAB (BATCH & INLINE APPROVAL) ---
+        // --- 3. PENDING TAB ---
         async function loadPendingTab() {
             const content = document.getElementById('mainContent');
             content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-gray-500 font-bold animate-pulse">Syncing Inbox...</p></div>`;
@@ -276,9 +310,7 @@
                         });
                     }
                 }
-
                 renderPendingUI();
-
             } catch (err) {
                 content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${err.message}</div>`;
             }
@@ -289,7 +321,7 @@
             
             if (pendingOrders.length === 0) {
                 content.innerHTML = `
-                    <div class="flex flex-col justify-center items-center h-full px-6 text-center pt-24">
+                    <div class="flex flex-col justify-center items-center h-full px-6 text-center">
                         <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mb-4">✨</div>
                         <h2 class="text-xl font-bold text-gray-800">All caught up!</h2>
                         <p class="text-gray-500 text-sm mt-2">There are no pending requests requiring your approval.</p>
@@ -299,7 +331,7 @@
             }
 
             let html = `
-                <div class="p-4 flex justify-between items-center sticky top-0 bg-gray-100/95 backdrop-blur z-10 border-b border-gray-200">
+                <div class="p-4 flex justify-between items-center sticky top-0 bg-gray-100/95 backdrop-blur z-20 border-b border-gray-200">
                     <label class="flex items-center space-x-3 text-sm font-bold text-gray-700 active:opacity-70">
                         <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" class="w-5 h-5 rounded border-gray-300 text-dar-green focus:ring-dar-green">
                         <span>SELECT ALL (${pendingOrders.length})</span>
@@ -335,7 +367,7 @@
             });
 
             html += `</div>
-                <div class="fixed bottom-16 left-0 w-full bg-white/90 backdrop-blur border-t border-gray-200 p-3 flex justify-between space-x-3 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-20">
+                <div class="fixed bottom-16 left-0 w-full bg-white/95 backdrop-blur border-t border-gray-200 p-3 flex justify-between space-x-3 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-30">
                     <button onclick="handleBatchAction('DISAPPROVE')" class="w-1/3 bg-white text-gray-700 font-bold py-3 rounded-xl text-sm active:bg-gray-100 transition border border-gray-300">
                         Batch Deny
                     </button>
@@ -344,15 +376,11 @@
                     </button>
                 </div>
             `;
-            
             content.innerHTML = html;
         }
 
-        function toggleSelectAll(source) {
-            document.querySelectorAll('.to-checkbox').forEach(cb => cb.checked = source.checked);
-        }
+        function toggleSelectAll(source) { document.querySelectorAll('.to-checkbox').forEach(cb => cb.checked = source.checked); }
 
-        // Logic routing for single and batch actions
         function getPayloadObject(action, u, reason = "") {
             if (action === 'DISAPPROVE') return { status: "DISAPPROVED", received: reason };
             if (action === 'APPROVE') {
@@ -367,19 +395,15 @@
             if(action === 'DISAPPROVE') {
                 const reason = prompt("Reason for denial:");
                 if(!reason) return;
-                const payload = getPayloadObject('DISAPPROVE', currentUser, reason);
-                await processUpdate([to_no], payload);
+                await processUpdate([to_no], getPayloadObject('DISAPPROVE', currentUser, reason));
             } else {
                 const u = currentUser;
                 if (u.role === "VEHICLE_APPROVER") {
                     const order = pendingOrders.find(o => o.to_no === to_no);
-                    let new_stat = "PENDING_CHIEF";
-                    if (order.unit === "PARPO") new_stat = "PENDING_PARPO";
-                    else if (order.unit && order.unit !== "NONE") new_stat = "PENDING_UNIT_HEAD";
+                    let new_stat = order.unit === "PARPO" ? "PENDING_PARPO" : (order.unit && order.unit !== "NONE" ? "PENDING_UNIT_HEAD" : "PENDING_CHIEF");
                     await processUpdate([to_no], { status: new_stat, received: "VEHICLE_RESERVED" });
                 } else {
-                    const payload = getPayloadObject('APPROVE', u);
-                    await processUpdate([to_no], payload);
+                    await processUpdate([to_no], getPayloadObject('APPROVE', u));
                 }
             }
         }
@@ -392,8 +416,7 @@
                 const reason = prompt("Reason for denial:");
                 if (!reason) return; 
                 if(confirm(`Deny ${selectedIds.length} request(s)?`)) {
-                    const payload = getPayloadObject('DISAPPROVE', currentUser, reason);
-                    processUpdate(selectedIds, payload);
+                    processUpdate(selectedIds, getPayloadObject('DISAPPROVE', currentUser, reason));
                 }
             } else if (action === 'APPROVE') {
                 if(confirm(`Approve ${selectedIds.length} request(s)?`)) {
@@ -401,32 +424,25 @@
                     if (u.role === "VEHICLE_APPROVER") {
                         for (let to_no of selectedIds) {
                             const order = pendingOrders.find(o => o.to_no === to_no);
-                            let new_stat = "PENDING_CHIEF";
-                            if (order.unit === "PARPO") new_stat = "PENDING_PARPO";
-                            else if (order.unit && order.unit !== "NONE") new_stat = "PENDING_UNIT_HEAD";
+                            let new_stat = order.unit === "PARPO" ? "PENDING_PARPO" : (order.unit && order.unit !== "NONE" ? "PENDING_UNIT_HEAD" : "PENDING_CHIEF");
                             await supabaseClient.from('travel_orders').update({ status: new_stat, received: "VEHICLE_RESERVED" }).eq('to_no', to_no);
                         }
                         loadPendingTab();
                         return;
                     } 
-                    const payload = getPayloadObject('APPROVE', u);
-                    processUpdate(selectedIds, payload);
+                    processUpdate(selectedIds, getPayloadObject('APPROVE', u));
                 }
             }
         }
 
         async function processUpdate(ids, payload) {
             try {
-                // Process sequentially for basic JS client
-                for (let id of ids) {
-                    await supabaseClient.from('travel_orders').update(payload).eq('to_no', id);
-                }
+                for (let id of ids) await supabaseClient.from('travel_orders').update(payload).eq('to_no', id);
                 loadPendingTab();
             } catch (err) { alert("Error updating records: " + err.message); }
         }
 
-
-        // --- 4. APPROVED / DENIED TAB (FIXED DUPLICATES) ---
+        // --- 4. APPROVED / DENIED TAB ---
         async function loadStatusTab(status) {
             const content = document.getElementById('mainContent');
             content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-gray-500 font-bold animate-pulse">Loading Records...</p></div>`;
@@ -434,38 +450,28 @@
             try {
                 const { data: orders, error } = await supabaseClient.from('travel_orders').select('*').eq('status', status);
                 if (error) throw error;
-                
                 const { data: itinRes } = await supabaseClient.from('itinerary').select('*');
 
                 const uRole = currentUser.role;
                 const uDivs = currentUser.divisions;
                 const uUnit = currentUser.unit;
 
-                // Group data cleanly by TO_NO
                 let groupedData = {};
-
                 orders.forEach(o => {
                     let div = (o.division || "").toUpperCase();
                     let unit = (o.unit || "").toUpperCase();
-                    
                     if (uRole !== "PARPO" && uRole !== "VEHICLE_APPROVER") {
                         if (!uDivs.includes(div)) return;
                         if ((uRole === "UNIT_HEAD" || uRole === "MARPO") && unit !== uUnit) return;
                     }
-                    
                     if (!groupedData[o.to_no]) {
                         groupedData[o.to_no] = {
-                            to_no: o.to_no,
-                            names: new Set(),
-                            destinations: new Set(),
-                            dates: [],
-                            reason: o.received || 'No reason provided'
+                            to_no: o.to_no, names: new Set(), destinations: new Set(), dates: [], reason: o.received || 'No reason provided'
                         };
                     }
                     groupedData[o.to_no].names.add(o.emp_name);
                 });
 
-                // Attach itinerary data
                 itinRes.forEach(i => {
                     if (groupedData[i.to_no]) {
                         if (i.destination) groupedData[i.to_no].destinations.add(i.destination);
@@ -473,7 +479,6 @@
                     }
                 });
 
-                // Convert to array and sort
                 let finalArray = Object.values(groupedData).map(item => {
                     item.dates.sort((a,b) => a - b); 
                     let dateStr = "No Date";
@@ -482,24 +487,16 @@
                         if(item.dates.length > 1) {
                             const lastD = item.dates[item.dates.length-1].toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                             dateStr = `${firstD} - ${lastD}`;
-                        } else {
-                            dateStr = firstD;
-                        }
+                        } else { dateStr = firstD; }
                     }
-
                     return {
-                        to_no: item.to_no,
-                        namesArr: Array.from(item.names),
-                        destStr: Array.from(item.destinations).join(', ') || 'Not Specified',
-                        dateDisplay: dateStr,
-                        rawSortDate: item.dates.length > 0 ? item.dates[0] : new Date(0),
-                        reason: item.reason
+                        to_no: item.to_no, namesArr: Array.from(item.names), destStr: Array.from(item.destinations).join(', ') || 'Not Specified',
+                        dateDisplay: dateStr, rawSortDate: item.dates.length > 0 ? item.dates[0] : new Date(0), reason: item.reason
                     };
                 });
 
-                finalArray.sort((a, b) => b.rawSortDate - a.rawSortDate); // Newest first
+                finalArray.sort((a, b) => b.rawSortDate - a.rawSortDate);
                 renderStatusUI(status, finalArray);
-
             } catch (err) {
                 content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${err.message}</div>`;
             }
@@ -511,7 +508,7 @@
             
             if (dataArray.length === 0) {
                 content.innerHTML = `
-                    <div class="flex flex-col justify-center items-center h-full px-6 text-center pt-24">
+                    <div class="flex flex-col justify-center items-center h-full px-6 text-center">
                         <div class="w-16 h-16 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-2xl mb-4">📋</div>
                         <h2 class="text-xl font-bold text-gray-800">No ${isAppr ? 'Approved' : 'Denied'} Orders</h2>
                         <p class="text-gray-500 text-sm mt-2">Processed orders will appear here.</p>
@@ -520,7 +517,7 @@
             }
 
             let html = `
-                <div class="p-4 sticky top-0 bg-gray-100/95 backdrop-blur z-10 border-b border-gray-200 flex justify-between items-center">
+                <div class="p-4 sticky top-0 bg-gray-100/95 backdrop-blur z-20 border-b border-gray-200 flex justify-between items-center">
                     <h2 class="font-bold text-sm text-gray-700 uppercase tracking-wider">RECENTLY ${isAppr ? 'APPROVED' : 'DENIED'}</h2>
                     <button onclick="loadStatusTab('${status}')" class="text-gray-500 active:text-gray-800 p-1">🔄</button>
                 </div>
@@ -530,7 +527,6 @@
             dataArray.forEach(r => {
                 const mainName = r.namesArr[0];
                 const displayName = mainName + (r.namesArr.length > 1 ? ` <span class="text-xs text-gray-500 font-normal ml-1">(+${r.namesArr.length-1})</span>` : '');
-
                 const badge = isAppr 
                     ? `<span class="inline-block bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Approved</span>`
                     : `<span class="inline-block bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Denied</span>`;
@@ -541,7 +537,6 @@
                             ${badge}
                             <span class="text-xs font-bold text-gray-400">${r.to_no}</span>
                         </div>
-                        
                         <p class="font-bold text-gray-800 leading-tight mb-2">${displayName}</p>
                         
                         <div class="bg-gray-50 rounded-xl p-3 flex flex-col space-y-1.5">
@@ -554,7 +549,6 @@
                                 <p class="text-xs font-semibold ${isAppr ? 'text-dar-green' : 'text-gray-600'}">${r.dateDisplay}</p>
                             </div>
                         </div>
-                        
                         ${!isAppr ? `
                         <div class="mt-3 bg-red-50 border border-red-100 rounded-lg p-2 flex items-start">
                             <span class="text-xs mr-2 mt-0.5">💬</span>
@@ -564,12 +558,11 @@
                     </div>
                 `;
             });
-
             html += `</div>`;
             content.innerHTML = html;
         }
 
-        // --- 5. REPORTS TAB (DAILY, WEEKLY, MONTHLY) ---
+        // --- 5. REPORTS TAB (SEARCH & EXPANDED DESTINATIONS) ---
         async function loadReportsTab() {
             const content = document.getElementById('mainContent');
             content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-blue-500 font-bold animate-pulse">Generating Report...</p></div>`;
@@ -610,11 +603,47 @@
                     }
                 });
 
-                renderReportsUI();
+                renderReportsShell();
 
             } catch(e) {
                 content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${e.message}</div>`;
             }
+        }
+
+        function setReportFilter(val) {
+            reportFilter = val;
+            
+            // Update active states visually
+            ['day', 'week', 'month'].forEach(f => {
+                const btn = document.getElementById('btn-' + f);
+                if (btn) {
+                    if(f === val) { btn.className = "w-1/3 py-1.5 text-xs font-bold rounded-lg transition bg-white text-blue-700 shadow-sm"; }
+                    else { btn.className = "w-1/3 py-1.5 text-xs font-bold rounded-lg transition text-gray-500"; }
+                }
+            });
+            
+            updateReportList();
+        }
+
+        function renderReportsShell() {
+            const content = document.getElementById('mainContent');
+            
+            content.innerHTML = `
+                <div class="sticky top-0 bg-gray-100 z-20 pt-4 px-4 pb-2 border-b border-gray-200 shadow-sm">
+                    <h2 class="font-bold text-lg text-blue-800 mb-3 text-center">Analytics Dashboard</h2>
+                    
+                    <input type="text" id="reportSearch" placeholder="🔍 Search employee name or TO..." oninput="updateReportList()" class="w-full px-4 py-2.5 mb-3 rounded-xl border border-gray-300 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-inner">
+                    
+                    <div class="flex bg-gray-200 rounded-xl p-1 shadow-inner">
+                        <button id="btn-day" onclick="setReportFilter('day')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'day' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Today</button>
+                        <button id="btn-week" onclick="setReportFilter('week')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'week' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">This Week</button>
+                        <button id="btn-month" onclick="setReportFilter('month')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">This Month</button>
+                    </div>
+                </div>
+                <div id="reportListContainer" class="p-4 space-y-4 pb-24"></div>
+            `;
+            
+            updateReportList();
         }
 
         function filterReportData(filterType) {
@@ -625,9 +654,7 @@
                 const d = new Date(r.date);
                 d.setHours(0,0,0,0);
 
-                if (filterType === 'day') {
-                    return d.getTime() === today.getTime();
-                } 
+                if (filterType === 'day') { return d.getTime() === today.getTime(); } 
                 else if (filterType === 'week') {
                     const startOfWeek = new Date(today);
                     startOfWeek.setDate(today.getDate() - today.getDay());
@@ -641,72 +668,70 @@
             }).sort((a, b) => b.date - a.date);
         }
 
-        function setReportFilter(val) {
-            reportFilter = val;
-            renderReportsUI();
-        }
-
-        function renderReportsUI() {
-            const content = document.getElementById('mainContent');
-            const filteredData = filterReportData(reportFilter);
-
-            let html = `
-                <div class="sticky top-0 bg-gray-100 z-10 pt-4 px-4 pb-2 border-b border-gray-200">
-                    <h2 class="font-bold text-lg text-blue-800 mb-3 text-center">Analytics Dashboard</h2>
-                    
-                    <div class="flex bg-gray-200 rounded-xl p-1 mb-2 shadow-inner">
-                        <button onclick="setReportFilter('day')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'day' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Today</button>
-                        <button onclick="setReportFilter('week')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'week' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">This Week</button>
-                        <button onclick="setReportFilter('month')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">This Month</button>
-                    </div>
-                </div>
-            `;
-
-            if (filteredData.length === 0) {
-                html += `
-                    <div class="flex flex-col justify-center items-center h-64 text-center px-6">
-                        <span class="text-4xl opacity-50 mb-3">📭</span>
-                        <p class="text-gray-500 font-semibold">No travels scheduled for this period.</p>
-                    </div>
-                `;
-            } else {
-                html += `<div class="p-4 space-y-3 pb-24">`;
-                
-                let datesGrouped = {};
-                filteredData.forEach(r => {
-                    const dStr = r.date.toDateString();
-                    if(!datesGrouped[dStr]) datesGrouped[dStr] = [];
-                    if(!datesGrouped[dStr].find(x => x.to_no === r.to_no)) {
-                        datesGrouped[dStr].push(r);
-                    }
-                });
-
-                for (const [dateStr, records] of Object.entries(datesGrouped)) {
-                    const dObj = new Date(dateStr);
-                    const isToday = dObj.toDateString() === new Date().toDateString();
-                    const label = isToday ? '🎯 TODAY' : dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-
-                    html += `<h3 class="font-bold text-xs text-blue-700 border-b border-blue-200 pb-1 mt-4 mb-2 uppercase">${label}</h3>`;
-
-                    records.forEach(r => {
-                        const displayName = r.names[0] + (r.names.length > 1 ? ` (+${r.names.length-1})` : '');
-                        html += `
-                            <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 border-blue-400 flex justify-between items-center mb-2">
-                                <div class="w-2/3 pr-2">
-                                    <p class="font-bold text-sm text-gray-800 truncate">${displayName}</p>
-                                    <p class="text-[10px] text-gray-400 font-mono mt-0.5">${r.to_no}</p>
-                                </div>
-                                <div class="w-1/3 text-right">
-                                    <p class="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block truncate max-w-full">📍 ${r.destination}</p>
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-                html += `</div>`;
+        function updateReportList() {
+            const container = document.getElementById('reportListContainer');
+            if(!container) return;
+            
+            const queryBox = document.getElementById('reportSearch');
+            const query = queryBox ? queryBox.value.toLowerCase() : '';
+            
+            let filteredData = filterReportData(reportFilter);
+            
+            // Apply Search Filtering
+            if (query) {
+                filteredData = filteredData.filter(r => 
+                    r.to_no.toLowerCase().includes(query) || 
+                    r.names.some(n => n.toLowerCase().includes(query))
+                );
             }
 
-            content.innerHTML = html;
+            if (filteredData.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col justify-center items-center h-48 text-center px-6 mt-8">
+                        <span class="text-4xl opacity-50 mb-3">📭</span>
+                        <p class="text-gray-500 font-semibold">No records found.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            let datesGrouped = {};
+            
+            filteredData.forEach(r => {
+                const dStr = r.date.toDateString();
+                if(!datesGrouped[dStr]) datesGrouped[dStr] = [];
+                // Prevent duplicate TOs on the exact same day
+                if(!datesGrouped[dStr].find(x => x.to_no === r.to_no)) {
+                    datesGrouped[dStr].push(r);
+                }
+            });
+
+            for (const [dateStr, records] of Object.entries(datesGrouped)) {
+                const dObj = new Date(dateStr);
+                const isToday = dObj.toDateString() === new Date().toDateString();
+                const label = isToday ? '🎯 TODAY' : dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+                html += `<h3 class="font-bold text-xs text-blue-800 border-b border-blue-200 pb-1 mt-6 mb-3 uppercase tracking-wider">${label}</h3>`;
+
+                records.forEach(r => {
+                    const displayName = r.names[0] + (r.names.length > 1 ? ` (+${r.names.length-1})` : '');
+                    
+                    // Destination is now explicitly a block element with normal wrapping so text isn't truncated
+                    html += `
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500 mb-3">
+                            <div class="flex justify-between items-start mb-2">
+                                <p class="font-bold text-sm text-gray-800">${displayName}</p>
+                                <p class="text-[10px] text-gray-400 font-mono tracking-wide ml-2 shrink-0">${r.to_no}</p>
+                            </div>
+                            <div class="bg-blue-50 border border-blue-100 rounded-lg p-2.5">
+                                <p class="text-xs text-blue-800 leading-relaxed font-medium whitespace-normal">📍 ${r.destination}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            container.innerHTML = html;
         }
 
         window.onload = render;
