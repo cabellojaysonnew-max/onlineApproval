@@ -4,168 +4,721 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>DAR Console</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="DAR Console">
+    <meta name="theme-color" content="#003811">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <link id="pwa-manifest" rel="manifest">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <style>
         .dar-green { background-color: #003811; }
+        .text-dar-green { color: #003811; }
         .dar-gold { background-color: #D4AF37; }
-        body { font-family: sans-serif; background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; }
-        .main-scroll { height: calc(100dvh - 8rem); margin-top: 4rem; margin-bottom: 4rem; overflow-y: auto; }
+        .text-dar-gold { color: #D4AF37; }
+        
+        /* Mobile layout fixes: 100dvh accounts for mobile browser address bars collapsing/expanding */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #f3f4f6; 
+            -webkit-tap-highlight-color: transparent; 
+            overscroll-behavior-y: none; 
+        }
+        
         ::-webkit-scrollbar { display: none; }
+        .modal-fade { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Safe Area Paddings for modern edge-to-edge phones */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .batch-bar-position { bottom: calc(4rem + env(safe-area-inset-bottom)); }
     </style>
 </head>
-<body class="h-[100dvh] w-full flex flex-col overflow-hidden">
+<body class="h-[100dvh] w-full flex flex-col overflow-hidden text-gray-800 bg-gray-100">
 
-    <div id="app" class="w-full h-full relative"></div>
+    <div id="app" class="w-full h-full flex flex-col relative"></div>
 
     <script>
+        const manifestData = {
+            "name": "DAR Cam Sur 1 Console",
+            "short_name": "DAR Console",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#F3F4F6",
+            "theme_color": "#003811",
+            "icons": [{
+                "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzAwMzgxMSIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iI0Q0QUYzNyI+RDwvdGV4dD48L3N2Zz4=",
+                "sizes": "192x192",
+                "type": "image/svg+xml"
+            }]
+        };
+        document.getElementById('pwa-manifest').setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestData)));
+
+        // --- SUPABASE CONFIG ---
         const SUPABASE_URL = "https://ytfpiyfapvybihlngxks.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0ZnBpeWZhcHZ5YmlobG5neGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMDA2MTIsImV4cCI6MjA4NTY3NjYxMn0.7TRVjvFjxVtxkP_hL3wnlxPT6FXJd0y7aKHNzDHThAQ";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        // --- APP STATE ---
         let currentUser = null;
-        let currentTab = 'pending';
-        let reportMonth = new Date().toISOString().substring(0, 7);
-        let reportSearch = "";
+        let currentTab = 'pending'; 
+        let reportFilter = 'day'; 
+        
+        let pendingOrders = [];
+        let reportData = [];
 
-        function render() { if (!currentUser) renderLogin(); else renderMain(); }
+        const appDiv = document.getElementById('app');
 
+        function render() {
+            if (!currentUser) renderLogin();
+            else renderMain();
+        }
+
+        // --- 1. LOGIN SCREEN ---
         function renderLogin() {
-            document.getElementById('app').innerHTML = `
-                <div class="flex flex-col justify-center items-center h-full dar-green px-6">
-                    <div class="bg-white p-8 rounded-2xl w-full max-w-sm text-center border-t-8 border-[#D4AF37]">
-                        <h1 class="text-2xl font-bold text-[#003811] mb-6">DAR CONSOLE</h1>
-                        <input type="text" id="u" placeholder="Username" class="w-full p-3 border rounded-xl mb-4 outline-none">
-                        <input type="password" id="p" placeholder="Password" class="w-full p-3 border rounded-xl mb-6 outline-none">
-                        <button onclick="login()" class="w-full dar-green text-white font-bold py-3 rounded-xl">LOG IN</button>
-                    </div>
-                </div>`;
-        }
-
-        async function login() {
-            const { data: users } = await supabaseClient.from('users').select('*');
-            const u = users.find(x => x.username === document.getElementById('u').value && x.password === document.getElementById('p').value);
-            if (u) {
-                currentUser = { fullName: u.full_name, role: u.role.toUpperCase(), unit: u.unit?.toUpperCase(), division: u.division?.toUpperCase() };
-                render();
-            } else alert("Wrong credentials");
-        }
-
-        function renderMain() {
-            document.getElementById('app').innerHTML = `
-                <header class="fixed top-0 w-full h-16 dar-green text-white flex justify-between items-center px-5 shadow-lg z-50">
-                    <div class="text-xs font-bold leading-tight uppercase truncate w-48">${currentUser.fullName}<br><span class="text-[#D4AF37]">${currentUser.role}</span></div>
-                    <button onclick="currentUser=null;render()" class="text-[10px] bg-white/20 px-3 py-1.5 rounded-full font-bold">Logout</button>
-                </header>
-                <main id="content" class="main-scroll bg-gray-100"></main>
-                <nav class="fixed bottom-0 w-full h-16 bg-white border-t flex justify-around items-center z-50 shadow-2xl">
-                    ${['pending','approved','denied','reports','map'].map(t => `<button onclick="switchTab('${t}')" class="flex flex-col items-center ${currentTab===t?'text-green-800':'text-gray-400'}"><span class="text-xl">${t==='map'?'📍':'📋'}</span><span class="text-[8px] uppercase font-bold">${t}</span></button>`).join('')}
-                </nav>`;
-            loadTabData();
-        }
-
-        function switchTab(t) { currentTab = t; renderMain(); }
-
-        function hasAccess(rec) {
-            const u = currentUser;
-            if (u.role === "PARPO" || u.role === "VEHICLE_APPROVER") return true;
-            if (u.role === "CHIEF") return (rec.division || "").toUpperCase() === u.division;
-            if (u.role === "UNIT_HEAD" || u.role === "MARPO") return (rec.unit || "").toUpperCase() === u.unit;
-            return false;
-        }
-
-        async function loadTabData() {
-            const main = document.getElementById('content');
-            if (currentTab === 'reports') { renderReports(main); return; }
-            if (currentTab === 'map') { renderMap(main); return; }
-
-            const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', currentTab === 'pending' ? 'PENDING_CHIEF' : (currentTab === 'approved' ? 'APPROVED' : 'DISAPPROVED'));
-            const filtered = (orders || []).filter(o => hasAccess(o));
-            let html = '<div class="p-4 space-y-3">';
-            filtered.forEach(o => {
-                html += `<div class="bg-white p-4 rounded-xl border shadow-sm">
-                    <p class="text-[10px] font-bold text-gray-400">${o.to_no}</p>
-                    <p class="font-bold text-gray-800 text-sm">${o.emp_name}</p>
-                    ${currentTab === 'pending' ? `<button onclick="updateStatus('${o.to_no}', 'APPROVED')" class="mt-3 w-full dar-green text-white py-2 rounded-lg text-xs font-bold">Approve</button>` : ''}
-                </div>`;
-            });
-            main.innerHTML = html + '</div>';
-        }
-
-        async function updateStatus(no, status) {
-            await supabaseClient.from('travel_orders').update({ status }).eq('to_no', no);
-            loadTabData();
-        }
-
-        async function renderReports(container) {
-            container.innerHTML = `
-                <div class="sticky top-0 bg-gray-100 p-4 border-b z-20">
-                    <div class="flex gap-2 mb-3">
-                        <input type="text" id="search" oninput="reportSearch=this.value;refreshRep()" placeholder="Search Name..." class="flex-grow p-2 border rounded-xl text-sm outline-none">
-                        <input type="month" value="${reportMonth}" onchange="reportMonth=this.value;refreshRep()" class="p-2 border rounded-xl text-xs font-bold">
+            appDiv.innerHTML = `
+                <div class="flex-grow flex flex-col justify-center items-center px-6 dar-green h-full">
+                    <div class="z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+                        <div class="dar-gold h-2 w-full"></div>
+                        <div class="p-8 text-center">
+                            <h1 class="text-dar-green font-bold text-3xl font-serif mb-1">DAR</h1>
+                            <p class="text-xs text-gray-500 font-bold tracking-widest mb-6 uppercase">Cam Sur 1 Console</p>
+                            
+                            <div class="space-y-4 text-left">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 mb-1">USERNAME</label>
+                                    <input type="text" id="username" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-800" autocomplete="off">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 mb-1">PASSWORD</label>
+                                    <input type="password" id="password" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-800">
+                                </div>
+                                
+                                <p id="loginError" class="text-red-600 text-xs font-bold text-center hidden"></p>
+                                
+                                <button onclick="handleLogin()" id="loginBtn" class="w-full mt-2 dar-green text-white font-bold py-3.5 rounded-xl active:opacity-80 transition-opacity shadow-lg">
+                                    LOG IN
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div id="repList" class="p-4 space-y-4 pb-10">...</div>`;
-            refreshRep();
+            `;
+            document.getElementById('password').addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
         }
 
-        async function refreshRep() {
-            const listDiv = document.getElementById('repList');
-            const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED');
-            const { data: itin } = await supabaseClient.from('itinerary').select('*').gte('travel_date', reportMonth+'-01').lte('travel_date', reportMonth+'-31');
-            
-            const allowed = (orders || []).filter(o => hasAccess(o) && o.emp_name.toLowerCase().includes(reportSearch.toLowerCase()));
-            const travelData = (itin || []).filter(i => allowed.some(o => o.to_no === i.to_no));
+        async function handleLogin() {
+            const userBox = document.getElementById('username').value.trim();
+            const passBox = document.getElementById('password').value.trim();
+            const errLbl = document.getElementById('loginError');
+            const btn = document.getElementById('loginBtn');
 
-            // Informative Grouping
-            let groups = {};
-            travelData.forEach(i => {
-                if (!groups[i.emp_name]) groups[i.emp_name] = { trips: new Set(), details: [] };
-                groups[i.emp_name].trips.add(i.to_no);
-                groups[i.emp_name].details.push(i);
+            if(!userBox || !passBox) { errLbl.innerText = "Enter both fields."; errLbl.classList.remove("hidden"); return; }
+            btn.innerText = "AUTHENTICATING..."; btn.disabled = true;
+
+            try {
+                const { data: users, error } = await supabaseClient.from('users').select('*');
+                if (error) throw error;
+
+                const user = users.find(u => u.username === userBox && u.password === passBox);
+                if (user) {
+                    currentUser = {
+                        username: user.username,
+                        fullName: user.full_name,
+                        role: user.role.toUpperCase(),
+                        divisions: user.division ? user.division.split(',').map(d => d.trim().toUpperCase()) : [],
+                        unit: user.unit ? user.unit.trim().toUpperCase() : ''
+                    };
+                    render();
+                } else {
+                    errLbl.innerText = "Invalid credentials."; errLbl.classList.remove("hidden");
+                }
+            } catch (err) {
+                errLbl.innerText = "Network Error."; errLbl.classList.remove("hidden");
+            } finally {
+                btn.innerText = "LOG IN"; btn.disabled = false;
+            }
+        }
+
+        function logout() { currentUser = null; render(); }
+
+        // --- 2. MAIN APP SHELL (STRICT FLEX LAYOUT FOR BUTTON VISIBILITY) ---
+        function renderMain() {
+            appDiv.innerHTML = `
+                <header class="flex-none w-full h-16 dar-green text-white px-5 flex justify-between items-center shadow-md z-50">
+                    <div class="overflow-hidden">
+                        <h1 class="font-bold text-lg leading-tight truncate whitespace-nowrap">${currentUser.fullName}</h1>
+                        <p class="text-xs text-dar-gold tracking-wide">${currentUser.role}</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="showChangePassword()" class="text-xl px-2 py-1 active:opacity-50">🔒</button>
+                        <button onclick="logout()" class="text-xs bg-white bg-opacity-20 px-3 py-1.5 rounded-full font-bold active:bg-opacity-30">Logout</button>
+                    </div>
+                </header>
+
+                <main id="mainContent" class="flex-grow w-full overflow-y-auto bg-gray-100 relative z-10 scroll-smooth"></main>
+
+                <nav class="flex-none w-full h-16 bg-white border-t border-gray-200 flex z-50 pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                    <button onclick="switchTab('pending')" class="flex flex-col items-center justify-center w-1/4 h-full ${currentTab === 'pending' ? 'text-dar-green font-bold' : 'text-gray-400'} relative">
+                        ${currentTab === 'pending' ? '<div class="absolute top-0 w-1/2 h-1 dar-green rounded-b-full"></div>' : ''}
+                        <span class="text-xl mb-0.5">📥</span>
+                        <span class="text-[9px] uppercase tracking-wider">Pending</span>
+                    </button>
+                    <button onclick="switchTab('approved')" class="flex flex-col items-center justify-center w-1/4 h-full ${currentTab === 'approved' ? 'text-dar-green font-bold' : 'text-gray-400'} relative">
+                        ${currentTab === 'approved' ? '<div class="absolute top-0 w-1/2 h-1 dar-green rounded-b-full"></div>' : ''}
+                        <span class="text-xl mb-0.5">✅</span>
+                        <span class="text-[9px] uppercase tracking-wider">Approved</span>
+                    </button>
+                    <button onclick="switchTab('denied')" class="flex flex-col items-center justify-center w-1/4 h-full ${currentTab === 'denied' ? 'text-red-600 font-bold' : 'text-gray-400'} relative">
+                        ${currentTab === 'denied' ? '<div class="absolute top-0 w-1/2 h-1 bg-red-600 rounded-b-full"></div>' : ''}
+                        <span class="text-xl mb-0.5">❌</span>
+                        <span class="text-[9px] uppercase tracking-wider">Denied</span>
+                    </button>
+                    <button onclick="switchTab('reports')" class="flex flex-col items-center justify-center w-1/4 h-full ${currentTab === 'reports' ? 'text-blue-600 font-bold' : 'text-gray-400'} relative">
+                        ${currentTab === 'reports' ? '<div class="absolute top-0 w-1/2 h-1 bg-blue-600 rounded-b-full"></div>' : ''}
+                        <span class="text-xl mb-0.5">📊</span>
+                        <span class="text-[9px] uppercase tracking-wider">Reports</span>
+                    </button>
+                </nav>
+
+                <div id="pwdModal" class="hidden absolute inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center px-4 modal-fade">
+                    <div class="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl">
+                        <div class="dar-green text-white p-4 font-bold text-center relative">
+                            Change Password
+                            <button onclick="hideChangePassword()" class="absolute right-4 top-4 text-white opacity-70 hover:opacity-100 text-xl leading-none">✕</button>
+                        </div>
+                        <div class="p-6 space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">CURRENT PASSWORD</label>
+                                <input type="password" id="oldPwd" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-800">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-1">NEW PASSWORD</label>
+                                <input type="password" id="newPwd" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-800">
+                            </div>
+                            <button onclick="updatePassword()" class="w-full mt-4 dar-green text-white font-bold py-3 rounded-xl active:opacity-80 transition shadow-md">
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            if (currentTab === 'pending') loadPendingTab();
+            else if (currentTab === 'approved') loadStatusTab('APPROVED');
+            else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
+            else loadReportsTab();
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            renderMain();
+        }
+
+        // --- PASSWORD MANAGEMENT ---
+        function showChangePassword() { document.getElementById('pwdModal').classList.remove('hidden'); }
+        function hideChangePassword() { 
+            document.getElementById('pwdModal').classList.add('hidden'); 
+            document.getElementById('oldPwd').value = '';
+            document.getElementById('newPwd').value = '';
+        }
+
+        async function updatePassword() {
+            const oldP = document.getElementById('oldPwd').value.trim();
+            const newP = document.getElementById('newPwd').value.trim();
+            if(!oldP || !newP) return alert("Please fill all fields.");
+
+            try {
+                const { data: userRecord, error } = await supabaseClient.from('users').select('password').eq('username', currentUser.username).single();
+                if (error || !userRecord || userRecord.password !== oldP) return alert("Incorrect current password.");
+
+                const { error: updError } = await supabaseClient.from('users').update({ password: newP }).eq('username', currentUser.username);
+                if (updError) throw updError;
+
+                alert("Password successfully updated!");
+                hideChangePassword();
+            } catch (err) { alert("Error updating password: " + err.message); }
+        }
+
+        // --- 3. PENDING TAB ---
+        async function loadPendingTab() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-gray-500 font-bold animate-pulse">Syncing Inbox...</p></div>`;
+
+            try {
+                const [ordersRes, itinRes] = await Promise.all([
+                    supabaseClient.from('travel_orders').select('*'),
+                    supabaseClient.from('itinerary').select('*')
+                ]);
+
+                const orders = ordersRes.data || [];
+                const itineraries = itinRes.data || [];
+
+                let groupedOrders = {};
+                orders.forEach(o => {
+                    if (!groupedOrders[o.to_no]) groupedOrders[o.to_no] = [];
+                    groupedOrders[o.to_no].push(o);
+                });
+
+                pendingOrders = [];
+                const uRole = currentUser.role;
+                const uDivs = currentUser.divisions;
+                const uUnit = currentUser.unit;
+
+                for (const [to_no, group] of Object.entries(groupedOrders)) {
+                    const first = group[0];
+                    const unit = (first.unit || "").trim().toUpperCase();
+                    const stat = (first.status || "").trim().toUpperCase();
+                    const div = (first.division || "").trim().toUpperCase();
+                    const transport = (first.transport || "").trim().toUpperCase();
+
+                    let show = false;
+                    if (uRole === "VEHICLE_APPROVER") {
+                        if (stat === "PENDING_VEHICLE_RESERVATION" && transport === "GOV'T VEHICLE") show = true;
+                    } else if (uRole === "UNIT_HEAD" || uRole === "MARPO") {
+                        if (stat === "PENDING_UNIT_HEAD" && uDivs.includes(div) && unit === uUnit) show = true;
+                    } else if (uRole === "CHIEF") {
+                        if (stat === "PENDING_CHIEF" && uDivs.includes(div)) show = true;
+                    } else if (uRole === "PARPO") {
+                        if (stat === "PENDING_PARPO") show = true;
+                    }
+
+                    if (show) {
+                        let dests = new Set();
+                        let names = group.map(g => g.emp_name);
+                        let itins = itineraries.filter(i => i.to_no === to_no);
+                        itins.forEach(i => { if(i.destination) dests.add(i.destination); });
+
+                        pendingOrders.push({
+                            to_no: to_no,
+                            names: names,
+                            destinations: Array.from(dests).join(', ') || 'N/A',
+                            unit: unit
+                        });
+                    }
+                }
+                renderPendingUI();
+            } catch (err) {
+                content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${err.message}</div>`;
+            }
+        }
+
+        function renderPendingUI() {
+            const content = document.getElementById('mainContent');
+            
+            if (pendingOrders.length === 0) {
+                content.innerHTML = `
+                    <div class="flex flex-col justify-center items-center h-full px-6 text-center">
+                        <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mb-4">✨</div>
+                        <h2 class="text-xl font-bold text-gray-800">All caught up!</h2>
+                        <p class="text-gray-500 text-sm mt-2">There are no pending requests requiring your approval.</p>
+                        <button onclick="loadPendingTab()" class="mt-6 px-6 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-full shadow-sm active:bg-gray-50">Refresh Inbox</button>
+                    </div>`;
+                return;
+            }
+
+            let html = `
+                <div class="p-4 flex justify-between items-center sticky top-0 bg-gray-100/95 backdrop-blur z-20 border-b border-gray-200">
+                    <label class="flex items-center space-x-3 text-sm font-bold text-gray-700 active:opacity-70">
+                        <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" class="w-5 h-5 rounded border-gray-300 text-dar-green focus:ring-dar-green">
+                        <span>SELECT ALL (${pendingOrders.length})</span>
+                    </label>
+                    <button onclick="loadPendingTab()" class="text-gray-500 active:text-gray-800 p-1">🔄</button>
+                </div>
+                <div class="p-4 space-y-4 pb-28">
+            `;
+
+            pendingOrders.forEach(o => {
+                const displayName = o.names[0] + (o.names.length > 1 ? ` <span class="text-[10px] text-white bg-green-600 px-1.5 py-0.5 rounded-full font-bold relative -top-0.5">+${o.names.length-1}</span>` : '');
+                
+                html += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 relative">
+                        <label class="flex items-start space-x-4 cursor-pointer mb-2">
+                            <div class="pt-1">
+                                <input type="checkbox" value="${o.to_no}" class="to-checkbox w-6 h-6 rounded-md border-gray-300 text-dar-green focus:ring-dar-green shadow-sm">
+                            </div>
+                            <div class="flex-grow overflow-hidden">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="font-bold text-xs text-gray-400 tracking-wider">${o.to_no}</span>
+                                </div>
+                                <p class="font-bold text-gray-800 leading-tight mb-1">${displayName}</p>
+                                <p class="text-xs text-gray-600 truncate flex items-center"><span class="mr-1">📍</span> ${o.destinations}</p>
+                            </div>
+                        </label>
+                        <div class="flex justify-end space-x-2 mt-3 pt-3 border-t border-gray-100">
+                            <button onclick="event.stopPropagation(); processSingle('${o.to_no}', 'DISAPPROVE')" class="text-xs text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg font-bold transition">Deny</button>
+                            <button onclick="event.stopPropagation(); processSingle('${o.to_no}', 'APPROVE')" class="text-xs text-white dar-green px-4 py-2 rounded-lg font-bold shadow-sm active:opacity-80 transition">Approve</button>
+                        </div>
+                    </div>
+                `;
             });
+
+            html += `</div>
+                <div class="fixed left-0 w-full bg-white/95 backdrop-blur border-t border-gray-200 p-3 flex justify-between space-x-3 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-40 batch-bar-position">
+                    <button onclick="handleBatchAction('DISAPPROVE')" class="w-1/3 bg-white text-gray-700 font-bold py-3 rounded-xl text-sm active:bg-gray-100 transition border border-gray-300">
+                        Batch Deny
+                    </button>
+                    <button onclick="handleBatchAction('APPROVE')" class="w-2/3 dar-green text-white font-bold py-3 rounded-xl text-sm active:opacity-80 transition shadow-lg flex items-center justify-center space-x-2">
+                        <span>Batch Approve</span>
+                    </button>
+                </div>
+            `;
+            content.innerHTML = html;
+        }
+
+        function toggleSelectAll(source) { document.querySelectorAll('.to-checkbox').forEach(cb => cb.checked = source.checked); }
+
+        function getPayloadObject(action, u, reason = "") {
+            if (action === 'DISAPPROVE') return { status: "DISAPPROVED", received: reason };
+            if (action === 'APPROVE') {
+                if (u.role === "UNIT_HEAD" || u.role === "MARPO") return { status: "PENDING_CHIEF", unithead_signed: u.fullName };
+                if (u.role === "CHIEF") return { status: "PENDING_PARPO", dc_signed: u.fullName };
+                if (u.role === "PARPO") return { status: "APPROVED", parpo_signed: "RICARDO C. GARCIA" };
+            }
+            return {};
+        }
+
+        async function processSingle(to_no, action) {
+            if(action === 'DISAPPROVE') {
+                const reason = prompt("Reason for denial:");
+                if(!reason) return;
+                await processUpdate([to_no], getPayloadObject('DISAPPROVE', currentUser, reason));
+            } else {
+                const u = currentUser;
+                if (u.role === "VEHICLE_APPROVER") {
+                    const order = pendingOrders.find(o => o.to_no === to_no);
+                    let new_stat = order.unit === "PARPO" ? "PENDING_PARPO" : (order.unit && order.unit !== "NONE" ? "PENDING_UNIT_HEAD" : "PENDING_CHIEF");
+                    await processUpdate([to_no], { status: new_stat, received: "VEHICLE_RESERVED" });
+                } else {
+                    await processUpdate([to_no], getPayloadObject('APPROVE', u));
+                }
+            }
+        }
+
+        async function handleBatchAction(action) {
+            const selectedIds = Array.from(document.querySelectorAll('.to-checkbox:checked')).map(cb => cb.value);
+            if (selectedIds.length === 0) { alert("Please select at least one Travel Order."); return; }
+
+            if (action === 'DISAPPROVE') {
+                const reason = prompt("Reason for denial:");
+                if (!reason) return; 
+                if(confirm(`Deny ${selectedIds.length} request(s)?`)) {
+                    processUpdate(selectedIds, getPayloadObject('DISAPPROVE', currentUser, reason));
+                }
+            } else if (action === 'APPROVE') {
+                if(confirm(`Approve ${selectedIds.length} request(s)?`)) {
+                    const u = currentUser;
+                    if (u.role === "VEHICLE_APPROVER") {
+                        for (let to_no of selectedIds) {
+                            const order = pendingOrders.find(o => o.to_no === to_no);
+                            let new_stat = order.unit === "PARPO" ? "PENDING_PARPO" : (order.unit && order.unit !== "NONE" ? "PENDING_UNIT_HEAD" : "PENDING_CHIEF");
+                            await supabaseClient.from('travel_orders').update({ status: new_stat, received: "VEHICLE_RESERVED" }).eq('to_no', to_no);
+                        }
+                        loadPendingTab();
+                        return;
+                    } 
+                    processUpdate(selectedIds, getPayloadObject('APPROVE', u));
+                }
+            }
+        }
+
+        async function processUpdate(ids, payload) {
+            try {
+                for (let id of ids) await supabaseClient.from('travel_orders').update(payload).eq('to_no', id);
+                loadPendingTab();
+            } catch (err) { alert("Error updating records: " + err.message); }
+        }
+
+        // --- 4. APPROVED / DENIED TAB ---
+        async function loadStatusTab(status) {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-gray-500 font-bold animate-pulse">Loading Records...</p></div>`;
+
+            try {
+                const { data: orders, error } = await supabaseClient.from('travel_orders').select('*').eq('status', status);
+                if (error) throw error;
+                const { data: itinRes } = await supabaseClient.from('itinerary').select('*');
+
+                const uRole = currentUser.role;
+                const uDivs = currentUser.divisions;
+                const uUnit = currentUser.unit;
+
+                let groupedData = {};
+                orders.forEach(o => {
+                    let div = (o.division || "").toUpperCase();
+                    let unit = (o.unit || "").toUpperCase();
+                    if (uRole !== "PARPO" && uRole !== "VEHICLE_APPROVER") {
+                        if (!uDivs.includes(div)) return;
+                        if ((uRole === "UNIT_HEAD" || uRole === "MARPO") && unit !== uUnit) return;
+                    }
+                    if (!groupedData[o.to_no]) {
+                        groupedData[o.to_no] = {
+                            to_no: o.to_no, names: new Set(), destinations: new Set(), dates: [], reason: o.received || 'No reason provided'
+                        };
+                    }
+                    groupedData[o.to_no].names.add(o.emp_name);
+                });
+
+                itinRes.forEach(i => {
+                    if (groupedData[i.to_no]) {
+                        if (i.destination) groupedData[i.to_no].destinations.add(i.destination);
+                        if (i.travel_date) groupedData[i.to_no].dates.push(new Date(i.travel_date));
+                    }
+                });
+
+                let finalArray = Object.values(groupedData).map(item => {
+                    item.dates.sort((a,b) => a - b); 
+                    let dateStr = "No Date";
+                    if (item.dates.length > 0) {
+                        const firstD = item.dates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        if(item.dates.length > 1) {
+                            const lastD = item.dates[item.dates.length-1].toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            dateStr = `${firstD} - ${lastD}`;
+                        } else { dateStr = firstD; }
+                    }
+                    return {
+                        to_no: item.to_no, namesArr: Array.from(item.names), destStr: Array.from(item.destinations).join(', ') || 'Not Specified',
+                        dateDisplay: dateStr, rawSortDate: item.dates.length > 0 ? item.dates[0] : new Date(0), reason: item.reason
+                    };
+                });
+
+                finalArray.sort((a, b) => b.rawSortDate - a.rawSortDate);
+                renderStatusUI(status, finalArray);
+            } catch (err) {
+                content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${err.message}</div>`;
+            }
+        }
+
+        function renderStatusUI(status, dataArray) {
+            const content = document.getElementById('mainContent');
+            const isAppr = status === 'APPROVED';
+            
+            if (dataArray.length === 0) {
+                content.innerHTML = `
+                    <div class="flex flex-col justify-center items-center h-full px-6 text-center">
+                        <div class="w-16 h-16 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-2xl mb-4">📋</div>
+                        <h2 class="text-xl font-bold text-gray-800">No ${isAppr ? 'Approved' : 'Denied'} Orders</h2>
+                        <p class="text-gray-500 text-sm mt-2">Processed orders will appear here.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = `
+                <div class="p-4 sticky top-0 bg-gray-100/95 backdrop-blur z-20 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="font-bold text-sm text-gray-700 uppercase tracking-wider">RECENTLY ${isAppr ? 'APPROVED' : 'DENIED'}</h2>
+                    <button onclick="loadStatusTab('${status}')" class="text-gray-500 active:text-gray-800 p-1">🔄</button>
+                </div>
+                <div class="p-4 space-y-3 pb-8">
+            `;
+
+            dataArray.forEach(r => {
+                const mainName = r.namesArr[0];
+                const displayName = mainName + (r.namesArr.length > 1 ? ` <span class="text-xs text-gray-500 font-normal ml-1">(+${r.namesArr.length-1})</span>` : '');
+                const badge = isAppr 
+                    ? `<span class="inline-block bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Approved</span>`
+                    : `<span class="inline-block bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Denied</span>`;
+
+                html += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border ${isAppr ? 'border-gray-100' : 'border-red-100'}">
+                        <div class="flex justify-between items-start mb-2">
+                            ${badge}
+                            <span class="text-xs font-bold text-gray-400">${r.to_no}</span>
+                        </div>
+                        <p class="font-bold text-gray-800 leading-tight mb-2">${displayName}</p>
+                        
+                        <div class="bg-gray-50 rounded-xl p-3 flex flex-col space-y-1.5">
+                            <div class="flex items-start">
+                                <span class="text-sm mr-2 mt-0.5">📍</span>
+                                <p class="text-xs text-gray-700 leading-snug">${r.destStr}</p>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="text-sm mr-2">📅</span>
+                                <p class="text-xs font-semibold ${isAppr ? 'text-dar-green' : 'text-gray-600'}">${r.dateDisplay}</p>
+                            </div>
+                        </div>
+                        ${!isAppr ? `
+                        <div class="mt-3 bg-red-50 border border-red-100 rounded-lg p-2 flex items-start">
+                            <span class="text-xs mr-2 mt-0.5">💬</span>
+                            <p class="text-xs text-red-700 font-semibold italic">Reason: ${r.reason}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            content.innerHTML = html;
+        }
+
+        // --- 5. REPORTS TAB ---
+        async function loadReportsTab() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<div class="flex justify-center items-center h-full"><p class="text-blue-500 font-bold animate-pulse">Generating Report...</p></div>`;
+
+            try {
+                const { data: orders, error } = await supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED');
+                if (error) throw error;
+                const { data: itinRes } = await supabaseClient.from('itinerary').select('*');
+
+                const uRole = currentUser.role;
+                const uDivs = currentUser.divisions;
+                const uUnit = currentUser.unit;
+
+                let validTos = new Set();
+                let toNames = {};
+
+                orders.forEach(o => {
+                    let div = (o.division || "").toUpperCase();
+                    let unit = (o.unit || "").toUpperCase();
+                    if (uRole !== "PARPO" && uRole !== "VEHICLE_APPROVER") {
+                        if (!uDivs.includes(div)) return;
+                        if ((uRole === "UNIT_HEAD" || uRole === "MARPO") && unit !== uUnit) return;
+                    }
+                    validTos.add(o.to_no);
+                    if(!toNames[o.to_no]) toNames[o.to_no] = [];
+                    toNames[o.to_no].push(o.emp_name);
+                });
+
+                reportData = [];
+                itinRes.forEach(i => {
+                    if (validTos.has(i.to_no) && i.travel_date) {
+                        reportData.push({
+                            to_no: i.to_no,
+                            date: new Date(i.travel_date),
+                            destination: i.destination || 'Not Specified',
+                            names: toNames[i.to_no] || ['Unknown']
+                        });
+                    }
+                });
+
+                renderReportsShell();
+
+            } catch(e) {
+                content.innerHTML = `<div class="p-6 text-center text-red-500 font-bold">Error: ${e.message}</div>`;
+            }
+        }
+
+        function setReportFilter(val) {
+            reportFilter = val;
+            ['day', 'week', 'month'].forEach(f => {
+                const btn = document.getElementById('btn-' + f);
+                if (btn) {
+                    btn.className = f === val 
+                        ? "w-1/3 py-1.5 text-xs font-bold rounded-lg transition bg-white text-blue-700 shadow-sm" 
+                        : "w-1/3 py-1.5 text-xs font-bold rounded-lg transition text-gray-500";
+                }
+            });
+            updateReportList();
+        }
+
+        function renderReportsShell() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `
+                <div class="sticky top-0 bg-gray-100 z-20 pt-4 px-4 pb-2 border-b border-gray-200 shadow-sm">
+                    <h2 class="font-bold text-lg text-blue-800 mb-3 text-center">Analytics Dashboard</h2>
+                    <input type="text" id="reportSearch" placeholder="🔍 Search employee name or TO..." oninput="updateReportList()" class="w-full px-4 py-2.5 mb-3 rounded-xl border border-gray-300 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-inner">
+                    <div class="flex bg-gray-200 rounded-xl p-1 shadow-inner">
+                        <button id="btn-day" onclick="setReportFilter('day')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'day' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Today</button>
+                        <button id="btn-week" onclick="setReportFilter('week')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'week' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">This Week</button>
+                        <button id="btn-month" onclick="setReportFilter('month')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">This Month</button>
+                    </div>
+                </div>
+                <div id="reportListContainer" class="p-4 space-y-4 pb-8"></div>
+            `;
+            updateReportList();
+        }
+
+        function filterReportData(filterType) {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            return reportData.filter(r => {
+                const d = new Date(r.date);
+                d.setHours(0,0,0,0);
+
+                if (filterType === 'day') return d.getTime() === today.getTime();
+                else if (filterType === 'week') {
+                    const startOfWeek = new Date(today);
+                    startOfWeek.setDate(today.getDate() - today.getDay());
+                    const endOfWeek = new Date(startOfWeek);
+                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+                    return d >= startOfWeek && d <= endOfWeek;
+                } 
+                else if (filterType === 'month') return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+            }).sort((a, b) => b.date - a.date);
+        }
+
+        function updateReportList() {
+            const container = document.getElementById('reportListContainer');
+            if(!container) return;
+            
+            const queryBox = document.getElementById('reportSearch');
+            const query = queryBox ? queryBox.value.toLowerCase() : '';
+            
+            let filteredData = filterReportData(reportFilter);
+            
+            if (query) {
+                filteredData = filteredData.filter(r => 
+                    r.to_no.toLowerCase().includes(query) || r.names.some(n => n.toLowerCase().includes(query))
+                );
+            }
+
+            if (filteredData.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col justify-center items-center h-48 text-center px-6 mt-8">
+                        <span class="text-4xl opacity-50 mb-3">📭</span>
+                        <p class="text-gray-500 font-semibold">No records found.</p>
+                    </div>
+                `;
+                return;
+            }
 
             let html = '';
-            Object.entries(groups).forEach(([name, data]) => {
-                html += `<div class="bg-white p-4 rounded-xl border shadow-sm mb-4">
-                    <div class="flex justify-between border-b pb-2 mb-2"><p class="font-bold text-sm text-gray-800">${name}</p><span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold">${data.trips.size} Trip(s)</span></div>
-                    <div class="space-y-2">${data.details.map(d => `<div class="text-[11px] text-gray-600 flex justify-between"><span class="font-bold">${d.travel_date}:</span> <span>📍 ${d.destination}</span></div>`).join('')}</div>
-                </div>`;
+            let datesGrouped = {};
+            
+            filteredData.forEach(r => {
+                const dStr = r.date.toDateString();
+                if(!datesGrouped[dStr]) datesGrouped[dStr] = [];
+                if(!datesGrouped[dStr].find(x => x.to_no === r.to_no)) {
+                    datesGrouped[dStr].push(r);
+                }
             });
-            listDiv.innerHTML = html || '<p class="text-center text-gray-400 py-10">No records found.</p>';
-        }
 
-        async function renderMap(container) {
-            const today = new Date().toISOString().split('T')[0];
-            const { data: itin } = await supabaseClient.from('itinerary').select('*').eq('travel_date', today);
-            const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED');
-            const deployed = (itin || []).filter(i => orders.some(o => o.to_no === i.to_no && hasAccess(o)));
+            for (const [dateStr, records] of Object.entries(datesGrouped)) {
+                const dObj = new Date(dateStr);
+                const isToday = dObj.toDateString() === new Date().toDateString();
+                const label = isToday ? '🎯 TODAY' : dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
-            container.innerHTML = `
-                <div class="flex flex-col h-full">
-                    <div class="bg-white p-4 border-b flex overflow-x-auto gap-4">
-                        ${deployed.map((d, i) => `
-                            <div onclick="document.getElementById('map').src='https://google.com/maps?q=$${encodeURIComponent(d.destination + ', Philippines')}&output=embed'" class="flex-none text-center">
-                                <div class="w-12 h-12 rounded-full dar-green text-white flex items-center justify-center font-bold shadow-md mb-1 mx-auto">${d.emp_name.substring(0,1)}</div>
-                                <p class="text-[8px] font-bold text-gray-500 uppercase">${d.emp_name.split(' ')[0]}</p>
-                            </div>`).join('')}
-                        ${deployed.length === 0 ? '<p class="text-xs text-gray-400 font-bold w-full text-center">No field deployments today.</p>' : ''}
-                    </div>
-                    <iframe id="map" class="flex-grow w-full border-0" src="${deployed[0] ? `https://google.com/maps?q=$${encodeURIComponent(deployed[0].destination + ', Philippines')}&output=embed` : ''}"></iframe>
-                </div>`;
+                html += `<h3 class="font-bold text-xs text-blue-800 border-b border-blue-200 pb-1 mt-6 mb-3 uppercase tracking-wider">${label}</h3>`;
+
+                records.forEach(r => {
+                    const displayName = r.names[0] + (r.names.length > 1 ? ` (+${r.names.length-1})` : '');
+                    html += `
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500 mb-3">
+                            <div class="flex justify-between items-start mb-2">
+                                <p class="font-bold text-sm text-gray-800">${displayName}</p>
+                                <p class="text-[10px] text-gray-400 font-mono tracking-wide ml-2 shrink-0">${r.to_no}</p>
+                            </div>
+                            <div class="bg-blue-50 border border-blue-100 rounded-lg p-2.5">
+                                <p class="text-xs text-blue-800 leading-relaxed font-medium whitespace-normal">📍 ${r.destination}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            container.innerHTML = html;
         }
 
         window.onload = render;
+
     </script>
 </body>
 </html>
-```
-
-**Anong nagbago dito?**
-1.  **Fixed Navigation:** Naka-`fixed` na ang Header at Bottom Navigation gamit ang `dvh` (Dynamic Viewport Height) para saktong mobile layout.
-2.  **Trip Counting Fix:** Gumamit ako ng `Set()` para bilangin ang unique `to_no`. Kahit 10 destinations ang nasa loob ng isang Travel Order, **1 Trip** pa rin ang bilang nito.
-3.  **Detailed Reports:** Nakalista na ang "Sino" at "Saan" (Petsa + Destination) sa ilalim ng bawat empleyado.
-4.  **Map Icons:** May maliliit na "Avatars" (Initial ng pangalan) sa itaas ng mapa para sa mga naka-field ngayong araw lamang.
-5.  **Role Security:** Ang Unit Head ay restricted lang sa mga records ng sarili niyang unit.
-
-Ayos na ba ang trip counting at reporting format na ito para sa'yo?
