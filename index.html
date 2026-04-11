@@ -8,13 +8,18 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .dar-green { background-color: #003811; }
+        .text-dar-green { color: #003811; }
         .dar-gold { background-color: #D4AF37; }
-        body { font-family: sans-serif; background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; }
-        .main-scroll { height: calc(100dvh - 8rem); margin-top: 4rem; margin-bottom: 4rem; overflow-y: auto; }
+        body { font-family: -apple-system, sans-serif; background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
         ::-webkit-scrollbar { display: none; }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        /* Sticky Layout Fixes */
+        .header-fixed { position: fixed; top: 0; width: 100%; height: 4rem; z-index: 50; }
+        .nav-fixed { position: fixed; bottom: 0; width: 100%; height: 4rem; z-index: 50; padding-bottom: env(safe-area-inset-bottom); }
+        .main-content { margin-top: 4rem; margin-bottom: 4rem; height: calc(100dvh - 8rem); overflow-y: auto; }
     </style>
 </head>
-<body class="h-[100dvh] w-full flex flex-col overflow-hidden">
+<body class="h-[100dvh] w-full flex flex-col overflow-hidden text-gray-800 bg-gray-100">
 
     <div id="app" class="w-full h-full relative"></div>
 
@@ -24,134 +29,197 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null;
-        let currentTab = 'pending';
-        let reportMonth = new Date().toISOString().substring(0, 7);
+        let currentTab = 'pending'; 
+        let reportFilter = 'day'; 
         let reportSearch = "";
+        let reportMonth = new Date().toISOString().substring(0, 7); // Default to current month YYYY-MM
 
         function render() { if (!currentUser) renderLogin(); else renderMain(); }
 
         function renderLogin() {
             document.getElementById('app').innerHTML = `
-                <div class="flex flex-col justify-center items-center h-full dar-green px-6">
-                    <div class="bg-white p-8 rounded-2xl w-full max-w-sm text-center border-t-8 border-[#D4AF37]">
-                        <h1 class="text-2xl font-bold text-[#003811] mb-6">DAR CONSOLE</h1>
-                        <input type="text" id="u" placeholder="Username" class="w-full p-3 border rounded-xl mb-4 outline-none">
-                        <input type="password" id="p" placeholder="Password" class="w-full p-3 border rounded-xl mb-6 outline-none">
-                        <button onclick="login()" class="w-full dar-green text-white font-bold py-3 rounded-xl">LOG IN</button>
+                <div class="flex-grow flex flex-col justify-center items-center px-6 dar-green h-full">
+                    <div class="z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden p-8 text-center border-t-8 border-[#D4AF37]">
+                        <h1 class="text-dar-green font-bold text-2xl mb-1 italic">DAR Console</h1>
+                        <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase">Management Access</p>
+                        <div class="space-y-4 text-left">
+                            <input type="text" id="u" placeholder="Username" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-green-800">
+                            <input type="password" id="p" placeholder="Password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-green-800">
+                            <button onclick="handleLogin()" class="w-full dar-green text-white font-bold py-3.5 rounded-xl shadow-lg active:opacity-80 transition">LOG IN</button>
+                        </div>
                     </div>
                 </div>`;
         }
 
-        async function login() {
+        async function handleLogin() {
             const { data: users } = await supabaseClient.from('users').select('*');
-            const u = users.find(x => x.username === document.getElementById('u').value && x.password === document.getElementById('p').value);
-            if (u) {
-                currentUser = { fullName: u.full_name, role: u.role.toUpperCase(), unit: u.unit?.toUpperCase(), division: u.division?.toUpperCase() };
+            const user = users.find(u => u.username === document.getElementById('u').value && u.password === document.getElementById('p').value);
+            if (user) {
+                currentUser = { 
+                    fullName: user.full_name, 
+                    role: user.role.toUpperCase(), 
+                    unit: user.unit ? user.unit.toUpperCase() : '',
+                    division: user.division ? user.division.toUpperCase() : ''
+                };
                 render();
-            } else alert("Wrong credentials");
+            } else alert("Invalid Credentials");
         }
 
         function renderMain() {
             document.getElementById('app').innerHTML = `
-                <header class="fixed top-0 w-full h-16 dar-green text-white flex justify-between items-center px-5 shadow-lg z-50">
-                    <div class="text-xs font-bold leading-tight uppercase truncate w-48">${currentUser.fullName}<br><span class="text-[#D4AF37]">${currentUser.role}</span></div>
+                <header class="header-fixed dar-green text-white px-5 flex justify-between items-center shadow-md">
+                    <div class="truncate w-48">
+                        <h1 class="font-bold text-sm leading-tight">${currentUser.fullName}</h1>
+                        <p class="text-[9px] text-dar-gold font-bold tracking-wide">${currentUser.role}</p>
+                    </div>
                     <button onclick="currentUser=null;render()" class="text-[10px] bg-white/20 px-3 py-1.5 rounded-full font-bold">Logout</button>
                 </header>
-                <main id="content" class="main-scroll bg-gray-100"></main>
-                <nav class="fixed bottom-0 w-full h-16 bg-white border-t flex justify-around items-center z-50 shadow-2xl">
-                    ${['pending','approved','denied','reports','map'].map(t => `<button onclick="switchTab('${t}')" class="flex flex-col items-center ${currentTab===t?'text-green-800':'text-gray-400'}"><span class="text-xl">${t==='map'?'📍':'📋'}</span><span class="text-[8px] uppercase font-bold">${t}</span></button>`).join('')}
+
+                <main id="mainContent" class="main-content"></main>
+
+                <nav class="nav-fixed bg-white border-t flex shadow-lg">
+                    ${['pending','approved','denied','reports'].map(tab => `
+                        <button onclick="switchTab('${tab}')" class="flex-1 flex flex-col items-center justify-center ${currentTab === tab ? 'text-dar-green font-bold' : 'text-gray-400'}">
+                            <span class="text-xl">${tab==='pending'?'📥':tab==='approved'?'✅':tab==='denied'?'❌':'📊'}</span>
+                            <span class="text-[9px] uppercase tracking-tighter">${tab}</span>
+                        </button>
+                    `).join('')}
                 </nav>`;
             loadTabData();
         }
 
         function switchTab(t) { currentTab = t; renderMain(); }
 
-        function hasAccess(rec) {
+        // --- SECURITY: Filter data based on approval role ---
+        function hasPermission(record) {
             const u = currentUser;
             if (u.role === "PARPO" || u.role === "VEHICLE_APPROVER") return true;
-            if (u.role === "CHIEF") return (rec.division || "").toUpperCase() === u.division;
-            if (u.role === "UNIT_HEAD" || u.role === "MARPO") return (rec.unit || "").toUpperCase() === u.unit;
+            if (u.role === "CHIEF") return (record.division || "").toUpperCase() === u.division;
+            if (u.role === "UNIT_HEAD" || u.role === "MARPO") return (record.unit || "").toUpperCase() === u.unit;
             return false;
         }
 
         async function loadTabData() {
-            const main = document.getElementById('content');
-            if (currentTab === 'reports') { renderReports(main); return; }
-            if (currentTab === 'map') { renderMap(main); return; }
+            const content = document.getElementById('mainContent');
+            if (currentTab === 'reports') { renderReportsUI(content); return; }
 
-            const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', currentTab === 'pending' ? 'PENDING_CHIEF' : (currentTab === 'approved' ? 'APPROVED' : 'DISAPPROVED'));
-            const filtered = (orders || []).filter(o => hasAccess(o));
-            let html = '<div class="p-4 space-y-3">';
+            content.innerHTML = `<p class="p-10 text-center animate-pulse text-gray-400">Syncing Records...</p>`;
+            const status = currentTab === 'pending' ? 'PENDING_CHIEF' : (currentTab === 'approved' ? 'APPROVED' : 'DISAPPROVED');
+            const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', status).order('created_at', {ascending: false});
+            
+            const filtered = (orders || []).filter(o => hasPermission(o));
+            if(filtered.length === 0) { content.innerHTML = `<div class="p-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs">No Records Found</div>`; return; }
+
+            let html = `<div class="p-4 space-y-3 pb-8">`;
             filtered.forEach(o => {
-                html += `<div class="bg-white p-4 rounded-xl border shadow-sm">
-                    <p class="text-[10px] font-bold text-gray-400">${o.to_no}</p>
-                    <p class="font-bold text-gray-800 text-sm">${o.emp_name}</p>
-                    ${currentTab === 'pending' ? `<button onclick="updateStatus('${o.to_no}', 'APPROVED')" class="mt-3 w-full dar-green text-white py-2 rounded-lg text-xs font-bold">Approve</button>` : ''}
+                html += `<div class="bg-white p-4 rounded-xl shadow-sm border-l-4 ${currentTab==='approved'?'border-green-600':currentTab==='denied'?'border-red-600':'border-amber-500'}">
+                    <div class="flex justify-between items-start mb-1"><p class="font-bold text-sm text-gray-800">${o.emp_name}</p><p class="text-[9px] text-gray-400 font-mono">${o.to_no}</p></div>
+                    <p class="text-[10px] text-gray-500 uppercase font-bold">${o.division} | ${o.unit || 'No Unit'}</p>
+                    ${currentTab === 'pending' ? `
+                        <div class="flex space-x-2 mt-4">
+                            <button onclick="updateTO('${o.to_no}', 'APPROVED')" class="flex-1 dar-green text-white py-2 rounded-lg text-xs font-bold">Approve</button>
+                            <button onclick="updateTO('${o.to_no}', 'DISAPPROVED')" class="flex-1 bg-red-50 text-red-600 py-2 rounded-lg text-xs font-bold">Deny</button>
+                        </div>` : ''}
                 </div>`;
             });
-            main.innerHTML = html + '</div>';
+            content.innerHTML = html + '</div>';
         }
 
-        async function updateStatus(no, status) {
-            await supabaseClient.from('travel_orders').update({ status }).eq('to_no', no);
+        async function updateTO(to_no, status) {
+            const payload = status === 'APPROVED' ? { status, parpo_signed: 'RICARDO C. GARCIA' } : { status };
+            await supabaseClient.from('travel_orders').update(payload).eq('to_no', to_no);
             loadTabData();
         }
 
-        async function renderReports(container) {
+        // --- REPORTS: Organized & Detailed ---
+        function renderReportsUI(container) {
             container.innerHTML = `
-                <div class="sticky top-0 bg-gray-100 p-4 border-b z-20">
-                    <div class="flex gap-2 mb-3">
-                        <input type="text" id="search" oninput="reportSearch=this.value;refreshRep()" placeholder="Search Name..." class="flex-grow p-2 border rounded-xl text-sm outline-none">
-                        <input type="month" value="${reportMonth}" onchange="reportMonth=this.value;refreshRep()" class="p-2 border rounded-xl text-xs font-bold">
+                <div class="sticky top-0 bg-gray-100 z-30 p-4 border-b shadow-sm">
+                    <div class="flex space-x-2 mb-3">
+                        <input type="text" id="repSearch" oninput="reportSearch=this.value;refreshReports()" placeholder="Search Employee..." class="flex-grow px-4 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-inner">
+                        <input type="month" id="repMonth" value="${reportMonth}" onchange="reportMonth=this.value;refreshReports()" class="px-2 py-2 border rounded-xl text-xs font-bold outline-none shadow-inner">
+                    </div>
+                    <div class="flex bg-gray-200 rounded-xl p-1 shadow-inner">
+                        ${['day','week','month'].map(f => `<button onclick="reportFilter='${f}';refreshReports()" id="btn-${f}" class="flex-1 py-1.5 text-[10px] font-bold rounded-lg transition uppercase">${f}</button>`).join('')}
                     </div>
                 </div>
-                <div id="repList" class="p-4 space-y-4 pb-10">...</div>`;
-            refreshRep();
+                <div id="reportContainer" class="p-4 space-y-4 pb-20"></div>`;
+            refreshReports();
         }
 
-        async function refreshRep() {
-            const listDiv = document.getElementById('repList');
+        async function refreshReports() {
+            const container = document.getElementById('reportContainer');
+            ['day','week','month'].forEach(f => {
+                const btn = document.getElementById('btn-'+f);
+                btn.className = reportFilter === f ? "flex-1 py-1.5 text-[10px] font-bold rounded-lg bg-white shadow text-blue-700 uppercase" : "flex-1 py-1.5 text-[10px] font-bold rounded-lg text-gray-500 uppercase";
+            });
+
             const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED');
             const { data: itin } = await supabaseClient.from('itinerary').select('*').gte('travel_date', reportMonth+'-01').lte('travel_date', reportMonth+'-31');
             
-            const allowed = (orders || []).filter(o => hasAccess(o) && o.emp_name.toLowerCase().includes(reportSearch.toLowerCase()));
-            const travelData = (itin || []).filter(i => allowed.some(o => o.to_no === i.to_no));
+            const allowed = (orders || []).filter(o => hasPermission(o) && o.emp_name.toLowerCase().includes(reportSearch.toLowerCase()));
+            const travels = (itin || []).filter(i => allowed.some(o => o.to_no === i.to_no));
 
-            // Informative Grouping
-            let groups = {};
-            travelData.forEach(i => {
-                if (!groups[i.emp_name]) groups[i.emp_name] = { trips: new Set(), details: [] };
-                groups[i.emp_name].trips.add(i.to_no);
-                groups[i.emp_name].details.push(i);
-            });
+            if (travels.length === 0) { container.innerHTML = `<p class="p-10 text-center text-gray-400 text-xs font-bold italic">No data for this filter.</p>`; return; }
 
-            let html = '';
-            Object.entries(groups).forEach(([name, data]) => {
-                html += `<div class="bg-white p-4 rounded-xl border shadow-sm mb-4">
-                    <div class="flex justify-between border-b pb-2 mb-2"><p class="font-bold text-sm text-gray-800">${name}</p><span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold">${data.trips.size} Trip(s)</span></div>
-                    <div class="space-y-2">${data.details.map(d => `<div class="text-[11px] text-gray-600 flex justify-between"><span class="font-bold">${d.travel_date}:</span> <span>📍 ${d.destination}</span></div>`).join('')}</div>
-                </div>`;
-            });
-            listDiv.innerHTML = html || '<p class="text-center text-gray-400 py-10">No records found.</p>';
+            if (reportFilter === 'day') {
+                const today = new Date().toISOString().split('T')[0];
+                let html = '';
+                travels.filter(t => t.travel_date === today).forEach(t => {
+                    html += `<div class="bg-white p-3 rounded-lg border shadow-sm mb-2"><p class="text-[10px] font-bold text-blue-800 mb-1 uppercase">${t.emp_name}</p><p class="text-xs font-bold text-gray-700">📍 ${t.destination}</p></div>`;
+                });
+                container.innerHTML = html || '<p class="text-center text-gray-400">No travels today.</p>';
+            } else {
+                // Detailed Grouping by Employee
+                let empGroups = {};
+                travels.forEach(t => {
+                    if(!empGroups[t.emp_name]) empGroups[t.emp_name] = { trips: new Set(), details: [] };
+                    empGroups[t.emp_name].trips.add(t.to_no);
+                    empGroups[t.emp_name].details.push(t);
+                });
+
+                let html = '';
+                Object.entries(empGroups).sort((a,b) => b[1].trips.size - a[1].trips.size).forEach(([name, data]) => {
+                    html += `
+                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+                            <div class="bg-blue-50/50 px-4 py-3 border-b flex justify-between items-center">
+                                <p class="font-bold text-gray-800 text-sm">${name}</p>
+                                <span class="bg-blue-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-sm">${data.trips.size} Total Trip${data.trips.size>1?'s':''}</span>
+                            </div>
+                            <div class="p-3 space-y-2">
+                                ${data.details.sort((a,b) => new Date(a.travel_date) - new Date(b.travel_date)).map(d => `
+                                    <div class="flex items-start text-xs">
+                                        <span class="w-16 flex-none font-bold text-gray-400 text-[9px] pt-1 uppercase">${d.travel_date.substring(5)}</span>
+                                        <p class="flex-grow text-gray-700 leading-tight">📍 ${d.destination}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>`;
+                });
+                container.innerHTML = html;
+            }
         }
 
-        async function renderMap(container) {
+        // --- SIMPLE MAP VIEW ---
+        async function loadMapTab() {
+            const main = document.getElementById('mainContent');
             const today = new Date().toISOString().split('T')[0];
             const { data: itin } = await supabaseClient.from('itinerary').select('*').eq('travel_date', today);
             const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED');
-            const deployed = (itin || []).filter(i => orders.some(o => o.to_no === i.to_no && hasAccess(o)));
+            const active = (itin || []).filter(i => orders.some(o => o.to_no === i.to_no && hasPermission(o)));
 
-            container.innerHTML = `
-                <div class="flex flex-col h-full">
-                    <div class="bg-white p-4 border-b flex overflow-x-auto gap-4">
-                        ${deployed.map((d, i) => `
-                            <div onclick="document.getElementById('map').src='https://google.com/maps?q=$${encodeURIComponent(d.destination + ', Philippines')}&output=embed'" class="flex-none text-center">
-                                <div class="w-12 h-12 rounded-full dar-green text-white flex items-center justify-center font-bold shadow-md mb-1 mx-auto">${d.emp_name.substring(0,1)}</div>
-                                <p class="text-[8px] font-bold text-gray-500 uppercase">${d.emp_name.split(' ')[0]}</p>
-                            </div>`).join('')}
-                        ${deployed.length === 0 ? '<p class="text-xs text-gray-400 font-bold w-full text-center">No field deployments today.</p>' : ''}
+            main.innerHTML = `
+                <div class="flex flex-col h-full overflow-hidden">
+                    <div class="flex-none p-4 bg-white border-b flex overflow-x-auto gap-4 shadow-inner">
+                        ${active.map(a => `
+                            <div onclick="document.getElementById('mFrame').src='http://googleusercontent.com/maps.google.com/8{encodeURIComponent(a.destination + ', Philippines')}&output=embed'" class="flex-none flex flex-col items-center">
+                                <div class="w-12 h-12 rounded-full dar-green text-white flex items-center justify-center font-bold shadow-md mb-1">${a.emp_name[0]}</div>
+                                <p class="text-[8px] font-bold text-gray-500 uppercase">${a.emp_name.split(' ')[0]}</p>
+                            </div>
+                        `).join('')}
+                        ${active.length === 0 ? '<p class="text-xs text-gray-400 font-bold p-4 w-full text-center italic">No deployments today.</p>' : ''}
                     </div>
-                    <iframe id="map" class="flex-grow w-full border-0" src="${deployed[0] ? `https://google.com/maps?q=$${encodeURIComponent(deployed[0].destination + ', Philippines')}&output=embed` : ''}"></iframe>
+                    <iframe id="mFrame" class="flex-grow w-full border-0 bg-gray-200" src="${active[0] ? `http://googleusercontent.com/maps.google.com/9{encodeURIComponent(active[0].destination + ', Philippines')}&output=embed` : ''}"></iframe>
                 </div>`;
         }
 
