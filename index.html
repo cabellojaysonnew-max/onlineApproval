@@ -14,7 +14,6 @@
     <link id="pwa-manifest" rel="manifest">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <style>
         .dar-green { background-color: #003811; }
@@ -45,7 +44,7 @@
         let currentUser = null;
         let currentTab = 'pending'; 
         let reportFilter = 'day'; 
-        let isSubmitting = false;
+        let pendingOrders = [];
         let reportData = [];
 
         function render() { if (!currentUser) renderLogin(); else renderMain(); }
@@ -57,17 +56,16 @@
                         <div class="dar-gold h-2 w-full"></div>
                         <div class="p-8 text-center">
                             <h1 class="text-dar-green font-bold text-3xl font-serif mb-1">DAR</h1>
-                            <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase">Cam Sur 1 Console</p>
+                            <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase">Admin/Manager Console</p>
                             <div class="space-y-4 text-left">
-                                <input type="text" id="username" placeholder="Username" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-green-800 outline-none">
-                                <input type="password" id="password" placeholder="Password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-green-800 outline-none">
+                                <input type="text" id="username" placeholder="Username" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-green-800">
+                                <input type="password" id="password" placeholder="Password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-green-800">
                                 <button onclick="handleLogin()" id="loginBtn" class="w-full dar-green text-white font-bold py-3.5 rounded-xl shadow-lg active:opacity-80 transition">LOG IN</button>
                             </div>
                             <p id="loginError" class="text-red-600 text-xs font-bold mt-4 hidden"></p>
                         </div>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
 
         async function handleLogin() {
@@ -99,23 +97,22 @@
                 <main id="mainContent" class="flex-grow w-full overflow-y-auto bg-gray-100 relative"></main>
 
                 <nav class="flex-none w-full h-16 bg-white border-t flex z-50 pb-safe shadow-lg">
-                    <button onclick="switchTab('pending')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'pending' ? 'text-dar-green' : 'text-gray-400'}">
-                        <span class="text-xl">📥</span><span class="text-[8px] uppercase font-bold">Pending</span>
+                    <button onclick="switchTab('pending')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'pending' ? 'text-dar-green font-bold' : 'text-gray-400'}">
+                        <span class="text-xl">📥</span><span class="text-[8px] uppercase">Pending</span>
                     </button>
-                    <button onclick="switchTab('approved')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'approved' ? 'text-dar-green' : 'text-gray-400'}">
-                        <span class="text-xl">✅</span><span class="text-[8px] uppercase font-bold">Appr</span>
+                    <button onclick="switchTab('approved')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'approved' ? 'text-dar-green font-bold' : 'text-gray-400'}">
+                        <span class="text-xl">✅</span><span class="text-[8px] uppercase">Appr</span>
                     </button>
-                    <button onclick="switchTab('denied')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'denied' ? 'text-red-600' : 'text-gray-400'}">
-                        <span class="text-xl">❌</span><span class="text-[8px] uppercase font-bold">Denied</span>
+                    <button onclick="switchTab('denied')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'denied' ? 'text-red-600 font-bold' : 'text-gray-400'}">
+                        <span class="text-xl">❌</span><span class="text-[8px] uppercase">Denied</span>
                     </button>
-                    <button onclick="switchTab('reports')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'reports' ? 'text-blue-600' : 'text-gray-400'}">
-                        <span class="text-xl">📊</span><span class="text-[8px] uppercase font-bold">Reports</span>
+                    <button onclick="switchTab('reports')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'reports' ? 'text-blue-600 font-bold' : 'text-gray-400'}">
+                        <span class="text-xl">📊</span><span class="text-[8px] uppercase">Reports</span>
                     </button>
-                    <button onclick="switchTab('map')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'map' ? 'text-amber-600' : 'text-gray-400'}">
-                        <span class="text-xl">📍</span><span class="text-[8px] uppercase font-bold">Map</span>
+                    <button onclick="switchTab('map')" class="flex-1 flex flex-col items-center justify-center ${currentTab === 'map' ? 'text-amber-600 font-bold' : 'text-gray-400'}">
+                        <span class="text-xl">📍</span><span class="text-[8px] uppercase">Map</span>
                     </button>
-                </nav>
-            `;
+                </nav>`;
             if (currentTab === 'pending') loadPendingTab();
             else if (currentTab === 'approved') loadStatusTab('APPROVED');
             else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
@@ -125,113 +122,115 @@
 
         function switchTab(t) { currentTab = t; renderMain(); }
 
+        // --- PENDING LOGIC (Same as before) ---
         async function loadPendingTab() {
             const content = document.getElementById('mainContent');
-            content.innerHTML = `<p class="p-10 text-center animate-pulse font-bold text-gray-400">Syncing Inbox...</p>`;
+            content.innerHTML = `<p class="p-10 text-center animate-pulse text-gray-400 font-bold">Syncing Inbox...</p>`;
             try {
-                const { data: orders } = await supabaseClient.from('travel_orders').select('*');
-                const { data: itin } = await supabaseClient.from('itinerary').select('*');
-                let grouped = {}; orders.forEach(o => { if(!grouped[o.to_no]) grouped[o.to_no] = []; grouped[o.to_no].push(o); });
+                const [ordersRes, itinRes] = await Promise.all([supabaseClient.from('travel_orders').select('*'), supabaseClient.from('itinerary').select('*')]);
+                const orders = ordersRes.data || []; const itineraries = itinRes.data || [];
+                let grouped = {}; orders.forEach(o => { if (!grouped[o.to_no]) grouped[o.to_no] = []; grouped[o.to_no].push(o); });
                 pendingOrders = [];
                 for (const [to_no, group] of Object.entries(grouped)) {
-                    const f = group[0]; const stat = (f.status||"").toUpperCase(); const div = (f.division||"").toUpperCase();
+                    const f = group[0]; const unit = (f.unit||"").trim().toUpperCase(); const stat = (f.status||"").trim().toUpperCase(); const div = (f.division||"").trim().toUpperCase();
                     let show = false;
                     if (currentUser.role === "CHIEF" && stat === "PENDING_CHIEF" && currentUser.divisions.includes(div)) show = true;
+                    else if (currentUser.role === "UNIT_HEAD" && stat === "PENDING_UNIT_HEAD" && unit === currentUser.unit) show = true;
                     else if (currentUser.role === "PARPO" && stat === "PENDING_PARPO") show = true;
                     if (show) {
-                        let dests = itin.filter(i => i.to_no === to_no).map(i => i.destination);
-                        pendingOrders.push({ to_no, names: group.map(g => g.emp_name), destinations: dests.join(', ') });
+                        let dests = itineraries.filter(i => i.to_no === to_no).map(i => i.destination);
+                        pendingOrders.push({ to_no, names: group.map(g => g.emp_name), destinations: Array.from(new Set(dests)).join(', '), unit: unit });
                     }
                 }
                 renderPendingUI();
-            } catch(e) { content.innerHTML = `<p class="p-10 text-red-500">Sync Error</p>`; }
+            } catch (err) { content.innerHTML = `<p class="p-6 text-red-500 font-bold">Sync Error</p>`; }
         }
 
         function renderPendingUI() {
             const content = document.getElementById('mainContent');
-            if(pendingOrders.length === 0) { content.innerHTML = `<div class="p-20 text-center text-gray-400 font-bold">✨ Inbox Clear</div>`; return; }
+            if (pendingOrders.length === 0) { content.innerHTML = `<div class="p-20 text-center text-gray-400 font-bold">✨ Inbox Clear</div>`; return; }
             let html = `<div class="p-4 space-y-4 pb-20">`;
             pendingOrders.forEach(o => {
-                html += `
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="text-[10px] font-bold text-gray-400">${o.to_no}</span>
-                            <span class="bg-amber-100 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">For Approval</span>
-                        </div>
-                        <p class="font-bold text-gray-800">${o.names[0]}${o.names.length>1?' +'+(o.names.length-1):''}</p>
-                        <p class="text-xs text-gray-500 truncate mt-1">📍 ${o.destinations}</p>
-                        <div class="flex space-x-2 mt-4">
-                            <button onclick="processSingle('${o.to_no}', 'APPROVE')" class="flex-1 dar-green text-white py-2 rounded-lg font-bold text-xs">Approve</button>
-                            <button onclick="processSingle('${o.to_no}', 'DISAPPROVE')" class="flex-1 bg-red-50 text-red-600 py-2 rounded-lg font-bold text-xs">Deny</button>
-                        </div>
+                html += `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-start mb-2"><span class="font-bold text-xs text-gray-400">${o.to_no}</span><span class="bg-amber-100 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">For Approval</span></div>
+                    <p class="font-bold text-gray-800 leading-tight">${o.names[0]}${o.names.length > 1 ? ' +' + (o.names.length - 1) : ''}</p>
+                    <p class="text-xs text-gray-500 truncate mt-1">📍 ${o.destinations}</p>
+                    <div class="flex space-x-2 mt-4">
+                        <button onclick="processSingle('${o.to_no}', 'APPROVE')" class="flex-1 dar-green text-white py-2 rounded-lg font-bold text-xs">Approve</button>
+                        <button onclick="processSingle('${o.to_no}', 'DISAPPROVE')" class="flex-1 bg-red-50 text-red-600 py-2 rounded-lg font-bold text-xs">Deny</button>
                     </div>
-                `;
+                </div>`;
             });
             content.innerHTML = html + `</div>`;
         }
 
-        async function processSingle(id, action) {
-            const payload = action === 'APPROVE' ? (currentUser.role === 'CHIEF' ? {status:'PENDING_PARPO', dc_signed: currentUser.fullName} : {status:'APPROVED', parpo_signed:'RICARDO C. GARCIA'}) : {status:'DISAPPROVED'};
-            await supabaseClient.from('travel_orders').update(payload).eq('to_no', id);
+        async function processSingle(to_no, action) {
+            const u = currentUser;
+            let payload = action === 'DISAPPROVE' ? { status: "DISAPPROVED" } : (u.role === "UNIT_HEAD" ? { status: "PENDING_CHIEF", unithead_signed: u.fullName } : u.role === "CHIEF" ? { status: "PENDING_PARPO", dc_signed: u.fullName } : { status: "APPROVED", parpo_signed: "RICARDO C. GARCIA" });
+            await supabaseClient.from('travel_orders').update(payload).eq('to_no', to_no);
             loadPendingTab();
         }
 
-        async function loadStatusTab(s) {
+        async function loadStatusTab(status) {
             const content = document.getElementById('mainContent');
-            content.innerHTML = `<p class="p-10 text-center animate-pulse">Loading...</p>`;
-            const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', s);
-            if(!orders || orders.length === 0) { content.innerHTML = `<p class="p-20 text-center text-gray-400 font-bold">No Records</p>`; return; }
-            let html = `<div class="p-4 space-y-3">`;
-            orders.forEach(o => { html += `<div class="bg-white p-4 rounded-xl shadow-sm border-l-4 ${s==='APPROVED'?'border-green-500':'border-red-500'}"><div class="flex justify-between"><p class="font-bold text-sm">${o.emp_name}</p><p class="text-[10px] text-gray-400">${o.to_no}</p></div><p class="text-[10px] text-gray-500 mt-1">${o.division}</p></div>`; });
+            content.innerHTML = `<p class="p-10 text-center animate-pulse">Loading Records...</p>`;
+            const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', status);
+            if(!orders || orders.length === 0) { content.innerHTML = `<p class="p-20 text-center text-gray-400 font-bold">No Records Found</p>`; return; }
+            let html = `<div class="p-4 space-y-3 pb-8">`;
+            orders.forEach(o => { html += `<div class="bg-white p-4 rounded-xl shadow-sm border-l-4 ${status==='APPROVED'?'border-green-500':'border-red-500'}"><div class="flex justify-between items-start"><p class="font-bold text-sm">${o.emp_name}</p><p class="text-[10px] text-gray-400 font-mono">${o.to_no}</p></div><p class="text-[10px] text-gray-500 mt-1 uppercase font-bold">${o.division}</p></div>`; });
             content.innerHTML = html + `</div>`;
         }
 
         async function loadReportsTab() {
             const content = document.getElementById('mainContent');
-            content.innerHTML = `<div class="p-4 space-y-4"><div class="flex bg-gray-200 p-1 rounded-xl"><button onclick="reportFilter='day';loadReportsTab()" class="flex-1 py-1.5 text-[10px] font-bold rounded-lg ${reportFilter==='day'?'bg-white shadow':''}">Today</button><button onclick="reportFilter='month';loadReportsTab()" class="flex-1 py-1.5 text-[10px] font-bold rounded-lg ${reportFilter==='month'?'bg-white shadow':''}">Monthly</button></div><div id="repList">...</div></div>`;
+            content.innerHTML = `<div class="p-4"><div class="flex bg-gray-200 rounded-xl p-1 mb-4"><button onclick="reportFilter='day';loadReportsTab()" class="flex-1 py-1.5 text-xs font-bold rounded-lg ${reportFilter==='day'?'bg-white shadow':''}">Today</button><button onclick="reportFilter='month';loadReportsTab()" class="flex-1 py-1.5 text-xs font-bold rounded-lg ${reportFilter==='month'?'bg-white shadow':''}">Monthly View</button></div><div id="repList">...</div></div>`;
             const { data: itin } = await supabaseClient.from('itinerary').select('*');
+            const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED');
             const today = new Date().toISOString().split('T')[0];
-            let filtered = itin;
-            if(reportFilter === 'day') filtered = itin.filter(i => i.travel_date === today);
-            else filtered.sort((a,b) => new Date(a.travel_date) - new Date(b.travel_date));
+            let list = itin.filter(i => orders.some(o => o.to_no === i.to_no));
+            if(reportFilter === 'day') list = list.filter(i => i.travel_date === today);
+            else list.sort((a,b) => new Date(a.travel_date) - new Date(b.travel_date));
             let html = '';
-            filtered.forEach(i => { html += `<div class="bg-white p-3 rounded-lg border mb-2"><p class="text-[10px] font-bold text-blue-800">${i.travel_date}</p><p class="text-xs font-bold">${i.destination}</p><p class="text-[9px] text-gray-400 mt-1">${i.to_no}</p></div>`; });
-            document.getElementById('repList').innerHTML = html || 'No data';
+            list.forEach(i => { html += `<div class="bg-white p-3 rounded-lg border mb-2"><p class="text-[10px] font-bold text-blue-800">${i.travel_date}</p><p class="text-xs font-bold">${i.destination}</p><p class="text-[9px] text-gray-400">${i.to_no}</p></div>`; });
+            document.getElementById('repList').innerHTML = html || 'No data found.';
         }
 
-        // --- MAP TAB: Deployment Dashboard with Icons ---
+        // --- MAP VIEW LOGIC ---
         async function loadMapTab() {
             const content = document.getElementById('mainContent');
-            content.innerHTML = `<div class="flex items-center justify-center h-full"><p class="text-amber-600 font-bold animate-pulse">Monitoring Deployments...</p></div>`;
+            content.innerHTML = `<div class="flex items-center justify-center h-full"><p class="text-amber-600 font-bold animate-pulse">Scanning Live Deployments...</p></div>`;
             try {
                 const today = new Date().toISOString().split('T')[0];
                 const { data: itins } = await supabaseClient.from('itinerary').select('*').eq('travel_date', today);
-                if(!itins || itins.length === 0) { content.innerHTML = `<div class="p-20 text-center text-gray-400 font-bold"><span class="text-4xl block mb-4">🏠</span>No deployments today.</div>`; return; }
+                if(!itins || itins.length === 0) { content.innerHTML = `<div class="flex flex-col justify-center items-center h-full px-10 text-center text-gray-400"><span class="text-5xl mb-4">🏠</span><h2 class="font-bold text-gray-700">No Deployed Employees</h2><p class="text-xs mt-2">There are no approved travel orders for today.</p></div>`; return; }
                 
                 const { data: orders } = await supabaseClient.from('travel_orders').select('*').in('to_no', itins.map(i => i.to_no)).eq('status', 'APPROVED');
                 let active = [];
                 itins.forEach(i => {
                     const match = orders.find(o => o.to_no === i.to_no);
-                    if(match) active.push({ name: match.emp_name, destination: i.destination, initials: match.emp_name.split(' ').map(n => n[0]).join('').substring(0,2) });
+                    if(match) {
+                        const initials = match.emp_name.split(' ').map(n => n[0]).join('').substring(0,2);
+                        active.push({ name: match.emp_name, destination: i.destination, initials });
+                    }
                 });
 
-                if(active.length === 0) { content.innerHTML = `<p class="p-10 text-center">No approved travels for today.</p>`; return; }
+                if(active.length === 0) { content.innerHTML = `<p class="p-10 text-center text-gray-400 font-bold">No active travel today.</p>`; return; }
 
                 content.innerHTML = `
                     <div class="flex flex-col h-full overflow-hidden">
                         <div class="flex-none p-4 bg-white border-b border-gray-200">
                             <h2 class="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-4 flex items-center">
                                 <span class="w-2 h-2 bg-red-500 rounded-full mr-2 pulse-live"></span>
-                                LIVE DEPLOYMENTS (${active.length})
+                                ON FIELD TODAY (${active.length})
                             </h2>
                             <div class="flex overflow-x-auto space-x-5 pb-2">
                                 ${active.map((emp, idx) => `
-                                    <div onclick="updateMapFrame('${emp.destination}', this)" class="map-icon-btn flex-none flex flex-col items-center cursor-pointer transition active:scale-90">
-                                        <div class="w-14 h-14 rounded-full border-2 ${idx===0?'border-amber-500 scale-110 shadow-lg':'border-gray-200'} bg-white flex items-center justify-center relative mb-2 overflow-hidden">
-                                            <span class="text-xs font-bold text-gray-700">${emp.initials}</span>
-                                            <div class="absolute bottom-0 right-0 bg-amber-500 text-white p-0.5 rounded-full text-[8px]">📍</div>
+                                    <div onclick="updateMapFrame('${emp.destination}', this)" class="flex-none flex flex-col items-center cursor-pointer transition active:scale-95 map-user-icon">
+                                        <div class="w-12 h-12 rounded-full border-2 ${idx===0?'border-amber-500 scale-110 shadow-md':'border-gray-200'} bg-white flex items-center justify-center relative mb-1.5 overflow-hidden">
+                                            <span class="text-[10px] font-bold text-gray-600 uppercase">${emp.initials}</span>
+                                            <div class="absolute bottom-0 right-0 bg-amber-500 text-white p-0.5 rounded-full text-[6px]">📍</div>
                                         </div>
-                                        <p class="text-[8px] font-bold text-gray-600 truncate w-14 text-center uppercase">${emp.name.split(' ')[0]}</p>
+                                        <p class="text-[8px] font-bold text-gray-500 truncate w-14 text-center">${emp.name.split(' ')[0]}</p>
                                     </div>
                                 `).join('')}
                             </div>
@@ -239,17 +238,16 @@
                         <div class="flex-grow w-full relative">
                             <iframe id="mapFrame" class="w-full h-full border-0" src="https://maps.google.com/maps?q=${encodeURIComponent(active[0].destination + ', Philippines')}&t=&z=14&ie=UTF8&iwloc=&output=embed"></iframe>
                         </div>
-                    </div>
-                `;
-            } catch(e) { content.innerHTML = `<p class="p-10 text-red-500">Error loading Map</p>`; }
+                    </div>`;
+            } catch(e) { content.innerHTML = `<p class="p-10 text-red-500 font-bold">Map Error</p>`; }
         }
 
         window.updateMapFrame = function(dest, el) {
-            document.querySelectorAll('.map-icon-btn > div').forEach(d => d.classList.remove('border-amber-500', 'scale-110', 'shadow-lg'));
-            document.querySelectorAll('.map-icon-btn > div').forEach(d => d.classList.add('border-gray-200'));
+            document.querySelectorAll('.map-user-icon > div').forEach(d => d.classList.remove('border-amber-500', 'scale-110', 'shadow-md'));
+            document.querySelectorAll('.map-user-icon > div').forEach(d => d.classList.add('border-gray-200'));
             const avatar = el.querySelector('div');
             avatar.classList.remove('border-gray-200');
-            avatar.classList.add('border-amber-500', 'scale-110', 'shadow-lg');
+            avatar.classList.add('border-amber-500', 'scale-110', 'shadow-md');
             document.getElementById('mapFrame').src = `https://maps.google.com/maps?q=${encodeURIComponent(dest + ', Philippines')}&t=&z=14&ie=UTF8&iwloc=&output=embed`;
         };
 
