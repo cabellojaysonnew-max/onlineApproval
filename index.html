@@ -211,6 +211,25 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="mapModal" class="hidden absolute inset-0 bg-gray-100 z-[70] flex flex-col modal-fade">
+                    <div class="bg-blue-800 text-white p-4 flex justify-between items-center shadow-md flex-none">
+                        <h2 class="font-bold text-lg">🗺️ Location Map View</h2>
+                        <button onclick="closeMapView()" class="text-white text-2xl font-bold opacity-80 hover:opacity-100 leading-none">&times;</button>
+                    </div>
+                    <div class="p-4 flex-none bg-white border-b border-gray-200 shadow-sm z-10">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">SELECT EMPLOYEE DESTINATION</label>
+                        <select id="mapSelect" onchange="updateMapIframe()" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-sm text-gray-800">
+                        </select>
+                    </div>
+                    <div class="flex-grow w-full relative">
+                        <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 font-bold z-0">
+                            <span class="text-3xl mb-2 animate-bounce">🌍</span>
+                            <span>Loading Map...</span>
+                        </div>
+                        <iframe id="mapIframe" class="absolute inset-0 w-full h-full border-0 z-10" src="" allowfullscreen loading="lazy"></iframe>
+                    </div>
+                </div>
             `;
             
             if (currentTab === 'pending') loadPendingTab();
@@ -631,16 +650,58 @@
                         <button id="btn-month" onclick="setReportFilter('month')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg transition ${reportFilter === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">This Month</button>
                     </div>
                 </div>
-                <div id="reportListContainer" class="p-4 space-y-4 pb-8"></div>
+                <div id="reportListContainer" class="p-4 space-y-4 pb-28"></div>
+                
+                <div class="fixed left-0 w-full bg-white/95 backdrop-blur border-t border-gray-200 p-3 flex justify-center shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-40 batch-bar-position">
+                    <button onclick="openMapView()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl text-sm active:bg-blue-700 transition shadow-lg flex items-center justify-center space-x-2">
+                        <span class="text-xl">🗺️</span>
+                        <span>MAP VIEW (Location)</span>
+                    </button>
+                </div>
             `;
             updateReportList();
         }
+
+        window.openMapView = function() {
+            let filteredData = filterReportData(reportFilter);
+            if(filteredData.length === 0) {
+                alert("No employee destinations found for the selected period.");
+                return;
+            }
+            
+            const mapSelect = document.getElementById('mapSelect');
+            mapSelect.innerHTML = '';
+            
+            filteredData.forEach((r) => {
+                const opt = document.createElement('option');
+                opt.value = r.destination;
+                opt.text = `${r.names[0]} 📍 ${r.destination} (${r.date.toLocaleDateString('en-US', {month:'short', day:'numeric'})})`;
+                mapSelect.appendChild(opt);
+            });
+            
+            document.getElementById('mapModal').classList.remove('hidden');
+            updateMapIframe();
+        };
+
+        window.closeMapView = function() {
+            document.getElementById('mapModal').classList.add('hidden');
+            document.getElementById('mapIframe').src = ''; 
+        };
+
+        window.updateMapIframe = function() {
+            const dest = document.getElementById('mapSelect').value;
+            if(dest) {
+                // Automatically appends "Philippines" to ensure local accuracy
+                const query = encodeURIComponent(dest + ", Philippines");
+                document.getElementById('mapIframe').src = `https://maps.google.com/maps?q=${query}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
+            }
+        };
 
         function filterReportData(filterType) {
             const today = new Date();
             today.setHours(0,0,0,0);
             
-            return reportData.filter(r => {
+            let filtered = reportData.filter(r => {
                 const d = new Date(r.date);
                 d.setHours(0,0,0,0);
 
@@ -653,7 +714,14 @@
                     return d >= startOfWeek && d <= endOfWeek;
                 } 
                 else if (filterType === 'month') return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-            }).sort((a, b) => b.date - a.date);
+            });
+
+            // If monthly view, sort from Day 1 to end (Ascending). Otherwise, Newest first (Descending)
+            if (filterType === 'month') {
+                return filtered.sort((a, b) => a.date - b.date); 
+            } else {
+                return filtered.sort((a, b) => b.date - a.date); 
+            }
         }
 
         function updateReportList() {
@@ -684,6 +752,7 @@
             let html = '';
             let datesGrouped = {};
             
+            // Order is naturally maintained via the sorted filteredData array
             filteredData.forEach(r => {
                 const dStr = r.date.toDateString();
                 if(!datesGrouped[dStr]) datesGrouped[dStr] = [];
