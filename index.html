@@ -68,7 +68,7 @@
 
         let currentUser = null;
         let currentTab = 'pending'; 
-        let reportFilter = 'day'; 
+        let reportFilter = 'month'; 
         let reportData = [];
 
         const appDiv = document.getElementById('app');
@@ -81,15 +81,15 @@
         function renderLogin() {
             appDiv.innerHTML = `
                 <div class="flex-grow flex flex-col justify-center items-center px-6 dar-green h-full">
-                    <div class="z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden text-left">
+                    <div class="z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
                         <div class="dar-gold h-2 w-full"></div>
-                        <div class="p-8">
-                            <h1 class="text-dar-green font-bold text-3xl font-serif mb-1 text-center">DAR</h1>
-                            <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase text-center">Console Login</p>
+                        <div class="p-8 text-center text-left">
+                            <h1 class="text-dar-green font-bold text-3xl font-serif mb-1">DAR</h1>
+                            <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase">Cam Sur 1 Console</p>
                             <div class="space-y-4">
-                                <div><label class="block text-xs font-bold text-gray-700 mb-1">USERNAME</label><input type="text" id="username" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
-                                <div><label class="block text-xs font-bold text-gray-700 mb-1">PASSWORD</label><input type="password" id="password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
-                                <p id="loginError" class="text-red-600 text-[10px] font-bold text-center hidden"></p>
+                                <div><label class="block text-xs font-bold text-gray-700 mb-1 text-left">USERNAME</label><input type="text" id="username" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
+                                <div><label class="block text-xs font-bold text-gray-700 mb-1 text-left">PASSWORD</label><input type="password" id="password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
+                                <p id="loginError" class="text-red-600 text-[10px] font-bold hidden"></p>
                                 <button onclick="handleLogin()" id="loginBtn" class="w-full mt-2 dar-green text-white font-bold py-3.5 rounded-xl shadow-lg">LOG IN</button>
                             </div>
                         </div>
@@ -109,7 +109,7 @@
                     currentUser = { username: user.username, fullName: user.full_name, role: user.role.toUpperCase(), divisions: user.division ? user.division.split(',').map(d => d.trim().toUpperCase()) : [], unit: user.unit ? user.unit.trim().toUpperCase() : '' };
                     render();
                 } else { errLbl.innerText = "Check credentials."; errLbl.classList.remove("hidden"); }
-            } catch (err) { errLbl.innerText = "Error connecting."; errLbl.classList.remove("hidden"); }
+            } catch (err) { errLbl.innerText = "Connection Error."; errLbl.classList.remove("hidden"); }
         }
 
         function logout() { currentUser = null; render(); }
@@ -128,6 +128,7 @@
                     <button onclick="switchTab('reports')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'reports' ? 'text-blue-600 font-bold' : 'text-gray-400'}"><span class="text-xl">📊</span><span class="text-[9px] uppercase tracking-tighter">Reports</span></button>
                 </nav>
                 <div id="pwdModal" class="hidden absolute inset-0 bg-black/50 z-[60] flex items-center justify-center px-4 modal-fade"><div class="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"><div class="dar-green text-white p-4 font-bold text-center relative">Security<button onclick="hideChangePassword()" class="absolute right-4 text-xl leading-none">✕</button></div><div class="p-6 space-y-4"><input type="password" id="oldPwd" placeholder="Current Password" class="w-full px-4 py-2 border rounded-lg text-sm"><input type="password" id="newPwd" placeholder="New Password" class="w-full px-4 py-2 border rounded-lg text-sm"><button onclick="updatePassword()" class="w-full dar-green text-white font-bold py-3 rounded-xl">Save</button></div></div></div>`;
+            
             if (currentTab === 'pending') loadPendingTab();
             else if (currentTab === 'approved') loadStatusTab('APPROVED');
             else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
@@ -147,7 +148,7 @@
             alert("Security Updated!"); hideChangePassword();
         }
 
-        // --- CORE LOGIC (PENDING & APPROVED) ---
+        // --- PENDING / STATUS TAB HELPERS ---
         async function loadPendingTab() {
             const content = document.getElementById('mainContent');
             content.innerHTML = `<p class="flex items-center justify-center h-full text-gray-400 font-bold animate-pulse">Syncing Inbox...</p>`;
@@ -176,9 +177,9 @@
         function renderPendingUI() {
             const content = document.getElementById('mainContent');
             if (pendingOrders.length === 0) { content.innerHTML = `<div class="flex flex-col items-center justify-center h-full opacity-50"><span class="text-4xl">✨</span><p class="font-bold mt-2 text-xs">Inbox Clear</p></div>`; return; }
-            let html = `<div class="p-4 space-y-4 pb-32 text-left">`;
+            let html = `<div class="p-4 space-y-4 pb-32">`;
             pendingOrders.forEach(o => {
-                html += `<div class="bg-white p-4 rounded-2xl shadow-sm border"><span class="text-[10px] font-black text-gray-300 uppercase tracking-tighter">${o.to_no}</span><p class="font-bold text-gray-800">${o.names.join(', ')}</p><p class="text-xs text-gray-500 truncate">📍 ${o.destinations}</p><div class="flex justify-end space-x-2 mt-4"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Deny</button><button onclick="processSingle('${o.to_no}', 'APPROVE')" class="px-5 py-2 dar-green text-white rounded-xl text-[11px] font-bold">Approve</button></div></div>`;
+                html += `<div class="bg-white p-4 rounded-2xl shadow-sm border"><span class="text-[10px] font-black text-gray-300 uppercase tracking-tighter text-left block">${o.to_no}</span><p class="font-bold text-gray-800 text-left">${o.names.join(', ')}</p><p class="text-xs text-gray-600 truncate text-left">📍 ${o.destinations}</p><div class="flex justify-end space-x-2 mt-4"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Deny</button><button onclick="processSingle('${o.to_no}', 'APPROVE')" class="px-5 py-2 dar-green text-white rounded-xl text-[11px] font-bold">Approve</button></div></div>`;
             });
             content.innerHTML = html + `</div>`;
         }
@@ -201,18 +202,23 @@
             const content = document.getElementById('mainContent');
             content.innerHTML = `<p class="flex items-center justify-center h-full font-bold animate-pulse text-gray-400">Loading...</p>`;
             const { data: orders } = await supabaseClient.from('travel_orders').select('*').eq('status', status);
-            let html = `<div class="p-4 space-y-3 text-left">`;
+            let html = `<div class="p-4 space-y-3">`;
             (orders || []).forEach(o => {
-                if (currentUser.role !== "PARPO" && currentUser.role !== "VEHICLE_APPROVER") {
-                    if (!currentUser.divisions.includes(o.division?.toUpperCase())) return;
-                    if ((currentUser.role === "UNIT_HEAD" || currentUser.role === "MARPO") && currentUser.unit !== o.unit?.toUpperCase()) return;
+                const div = (o.division || "").toUpperCase();
+                const unit = (o.unit || "").toUpperCase();
+                let canSee = false;
+                if (currentUser.role === "PARPO" || currentUser.role === "VEHICLE_APPROVER") canSee = true;
+                else if (currentUser.role === "CHIEF" && currentUser.divisions.includes(div)) canSee = true;
+                else if ((currentUser.role === "UNIT_HEAD" || currentUser.role === "MARPO") && currentUser.divisions.includes(div) && currentUser.unit === unit) canSee = true;
+                
+                if (canSee) {
+                    html += `<div class="bg-white p-4 rounded-xl border-l-4 ${status === 'APPROVED' ? 'border-dar-green' : 'border-red-500'} text-left"><p class="text-[9px] font-black uppercase text-gray-400">${status}</p><p class="font-bold text-gray-800">${o.emp_name}</p><p class="text-[10px] text-gray-500 tracking-tighter">${o.to_no}</p></div>`;
                 }
-                html += `<div class="bg-white p-4 rounded-xl border-l-4 ${status === 'APPROVED' ? 'border-dar-green' : 'border-red-500'}"><p class="text-[9px] font-black uppercase text-gray-400">${status}</p><p class="font-bold text-gray-800">${o.emp_name}</p><p class="text-[10px] text-gray-500 tracking-tighter">${o.to_no}</p></div>`;
             });
             content.innerHTML = html + `</div>`;
         }
 
-        // --- DASHBOARD (NAME HOLIDAYS + DE-DUPLICATION + SCOPE) ---
+        // --- DASHBOARD (Strict Scope + Actual Holiday Names + Chrono Sort) ---
         async function loadReportsTab() {
             const content = document.getElementById('mainContent');
             content.innerHTML = `<div class="flex items-center justify-center h-full text-blue-500 font-bold animate-pulse">Building Activity Dashboard...</div>`;
@@ -229,7 +235,7 @@
                 const uDivs = currentUser.divisions;
                 const uUnit = currentUser.unit;
 
-                // Scope Helper Logic
+                // SCOPE HELPER: Strict filtering for Unit Heads and Chiefs
                 const inScope = (recordDiv, recordUnit) => {
                     if (uRole === "PARPO" || uRole === "VEHICLE_APPROVER") return true;
                     const divMatch = recordDiv && uDivs.includes(recordDiv.toUpperCase());
@@ -238,42 +244,42 @@
                     return divMatch && unitMatch;
                 };
 
-                // 1. Process Travel Orders (DE-DUPLICATED per Person/Day)
+                // 1. TRAVEL ORDERS (De-duplicated per Person/Day)
                 let seenKeys = new Set();
                 (itinRes.data || []).forEach(i => {
                     const parent = (toRes.data || []).find(t => t.to_no === i.to_no);
                     if(parent && i.travel_date && inScope(parent.division, parent.unit)) {
-                        const uniqueKey = `${parent.emp_name}-${i.travel_date}`; // Only one entry per person per day
+                        const uniqueKey = `${parent.emp_name}-${i.travel_date}`;
                         if (!seenKeys.has(uniqueKey)) {
-                            reportData.push({ type: 'TO', date: new Date(i.travel_date), name: parent.emp_name, subtitle: i.destination, color: 'blue' });
+                            reportData.push({ type: 'TO', date: new Date(i.travel_date), title: parent.emp_name, subtitle: i.destination, color: 'blue' });
                             seenKeys.add(uniqueKey);
                         }
                     }
                 });
 
-                // 2. Process PSOs (Scoped)
+                // 2. PSOs (Scoped)
                 (psoRes.data || []).forEach(p => {
                     if(p.date && inScope(p.division, p.unit)) {
-                        reportData.push({ type: 'PSO', date: new Date(p.date), name: p.emp_name || 'Personnel', subtitle: p.destination || 'Field Work', color: 'purple' });
+                        reportData.push({ type: 'PSO', date: new Date(p.date), title: p.emp_name || 'Personnel', subtitle: p.destination || 'Field Duty', color: 'purple' });
                     }
                 });
 
-                // 3. Process Holidays (Fixing 'undefined' name)
+                // 3. HOLIDAYS (Visible to everyone, Specific Name as Title)
                 (holRes.data || []).forEach(h => {
                     if(h.date) {
-                        const hTitle = h.holiday || h.name || "Special Holiday";
-                        reportData.push({ type: 'HOLIDAY', date: new Date(h.date), name: hTitle, subtitle: 'Department-wide', color: 'red' });
+                        const hActualName = h.holiday || h.name || "Special Holiday";
+                        reportData.push({ type: 'HOLIDAY', date: new Date(h.date), title: hActualName, subtitle: 'Department-wide', color: 'red' });
                     }
                 });
 
                 renderReportsShell();
-            } catch (e) { content.innerHTML = `<p class="p-10 text-red-500">Error loading dashboard.</p>`; }
+            } catch (e) { content.innerHTML = `<p class="p-10 text-red-500">Syncing Error.</p>`; }
         }
 
         function renderReportsShell() {
             const content = document.getElementById('mainContent');
             content.innerHTML = `
-                <div class="sticky top-0 bg-gray-100 z-20 pt-4 px-4 pb-2 border-b">
+                <div class="sticky top-0 bg-gray-100 z-20 pt-4 px-4 pb-2 border-b shadow-sm">
                     <h2 class="font-bold text-lg text-blue-900 mb-3 text-center tracking-tighter">Activity Analytics</h2>
                     <div class="flex bg-gray-200 rounded-xl p-1 mb-3">
                         <button id="btn-day" onclick="setReportFilter('day')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'day' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Today</button>
@@ -281,7 +287,7 @@
                         <button id="btn-month" onclick="setReportFilter('month')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Month</button>
                     </div>
                 </div>
-                <div id="reportListContainer" class="p-4 space-y-3 pb-20"></div>`;
+                <div id="reportListContainer" class="p-4 space-y-4 pb-20"></div>`;
             updateReportList();
         }
 
@@ -303,26 +309,30 @@
                 return true;
             });
 
-            // Sorting: Month View (Ascending: 1st onwards) | Others (Descending: Latest first)
+            // SORTING: Start with 1 onwards (Ascending) for month view. Others Descending.
             if (reportFilter === 'month') filtered.sort((a, b) => a.date - b.date);
             else filtered.sort((a, b) => b.date - a.date);
 
-            if (filtered.length === 0) { container.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold text-xs uppercase tracking-widest">No Activity Records</p>`; return; }
+            if (filtered.length === 0) { container.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold text-xs tracking-widest uppercase">No Activity Found</p>`; return; }
 
             let html = '';
             let lastDate = '';
             filtered.forEach(r => {
                 const dStr = r.date.toDateString();
+                // Date Header above the group
                 if (dStr !== lastDate) {
                     lastDate = dStr;
-                    html += `<h3 class="text-[10px] font-black text-gray-400 mt-6 mb-2 uppercase tracking-widest border-b pb-1 text-left">${r.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</h3>`;
+                    const dateLabel = r.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+                    html += `<h3 class="text-[10px] font-black text-gray-400 mt-6 mb-2 tracking-widest text-left border-b pb-1">${dateLabel}</h3>`;
                 }
+
                 const colorMap = { blue: 'border-blue-500 bg-blue-50 text-blue-800', purple: 'border-purple-500 bg-purple-50 text-purple-800', red: 'border-red-500 bg-red-50 text-red-800' };
                 const colors = colorMap[r.color];
+
                 html += `
-                    <div class="bg-white p-3 rounded-xl border-l-4 shadow-sm flex items-center justify-between text-left ${colors.split(' ')[0]}">
+                    <div class="bg-white p-4 rounded-2xl border-l-4 shadow-sm flex items-center justify-between text-left ${colors.split(' ')[0]}">
                         <div class="overflow-hidden">
-                            <p class="font-bold text-sm text-gray-800 truncate leading-tight">${r.name}</p>
+                            <p class="font-bold text-sm text-gray-800 truncate leading-tight">${r.title}</p>
                             <p class="text-[10px] text-gray-500 truncate mt-1">📍 ${r.subtitle || 'N/A'}</p>
                         </div>
                         <div class="shrink-0 ml-2">
