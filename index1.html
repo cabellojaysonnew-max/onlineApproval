@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DAR CS I - Mobile Portal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --dar-green: #003811;
+            --dar-gold: #D4AF37;
+            --bg-main: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --danger: #dc2626;
+            --success: #16a34a;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { margin: 0; background-color: var(--bg-main); color: var(--text-main); }
+
+        .screen { display: none; }
+        .screen.active { display: block; animation: fadeIn 0.3s ease; }
+        .view { display: none; padding: 15px; padding-bottom: 120px; }
+        .view.active { display: block; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .app-header { background: var(--dar-green); color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; border-bottom: 3px solid var(--dar-gold); }
+        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 15px; border: 1px solid #e5e7eb; }
+        
+        label { display: block; font-size: 11px; font-weight: bold; color: #6b7280; margin-bottom: 4px; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; margin-bottom: 12px; }
+
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-primary { background: var(--dar-green); }
+        .btn-gold { background: var(--dar-gold); color: var(--dar-green); }
+        .btn-danger { background: var(--danger); }
+        .btn-print { background: #1e293b; font-size: 12px; padding: 10px; margin-top: 10px; }
+
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; background: var(--dar-green); display: flex; z-index: 1000; padding-bottom: env(safe-area-inset-bottom); }
+        .nav-item { flex: 1; padding: 15px 0; text-align: center; color: #9ca3af; font-size: 10px; font-weight: bold; cursor: pointer; }
+        .nav-item.active { color: var(--dar-gold); border-top: 3px solid var(--dar-gold); }
+
+        .badge { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: bold; text-transform: uppercase; float: right; }
+        .bg-approved { background: #ecfdf5; color: #166534; }
+        .bg-pending { background: #fefce8; color: #854d0e; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen" class="screen active">
+        <div style="height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 25px;">
+            <div class="card" style="padding: 35px 25px;">
+                <h2 style="color: var(--dar-green); text-align: center; margin: 0;">DAR PORTAL</h2>
+                <p style="text-align: center; font-size: 12px; color: gray; margin-bottom: 25px; font-weight: bold;">CAMARINES SUR I - MOBILE</p>
+                <input type="text" id="login-id" placeholder="Employee ID">
+                <input type="password" id="login-pass" placeholder="Password">
+                <button class="btn btn-primary" onclick="handleLogin()">SECURE LOGIN</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-screen" class="screen">
+        <div class="app-header">
+            <div>
+                <div id="user-name" style="font-weight: bold; font-size: 14px;">User</div>
+                <div id="user-info" style="font-size: 10px; color: var(--dar-gold); font-weight: bold;">Division | Position</div>
+            </div>
+            <button onclick="location.reload()" style="background:none; border:1px solid white; color:white; padding:4px 8px; font-size:10px;">Logout</button>
+        </div>
+
+        <div id="apply-view" class="view active">
+            <div class="card">
+                <h4>Itinerary Builder</h4>
+                <label>Destination</label>
+                <input type="text" id="itin-dest" placeholder="Where to?">
+                <label>Purpose</label>
+                <textarea id="itin-purp" rows="2"></textarea>
+                <label>Report To (Required)</label>
+                <input type="text" id="to-report" placeholder="Official to report to">
+                <button class="btn btn-primary" onclick="submitTO()">🚀 SUBMIT TO</button>
+            </div>
+        </div>
+
+        <div id="status-view" class="view">
+            <h3 style="color: var(--dar-green);">My Applications</h3>
+            <div id="status-list"></div>
+        </div>
+
+        <div class="bottom-nav">
+            <div class="nav-item active" onclick="switchTab('apply-view', this)">📝 Apply</div>
+            <div class="nav-item" onclick="switchTab('status-view', this)">📋 Status</div>
+        </div>
+    </div>
+
+    <script type="module">
+        const { jsPDF } = window.jspdf;
+        const supabaseUrl = 'https://ytfpiyfapvybihlngxks.supabase.co';
+        const supabaseKey = 'sb_publishable_poSZUQ9HI4wcY9poEo5b1w_Z-pAJbKo'; 
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentUser = null;
+
+        window.handleLogin = async function() {
+            const id = document.getElementById('login-id').value.trim();
+            const pass = document.getElementById('login-pass').value.trim();
+            const { data } = await supabase.from('employees').select('*').eq('emp_id', id).single();
+            if (data && data.pass === pass) {
+                currentUser = data;
+                document.getElementById('user-name').innerText = data.full_name;
+                document.getElementById('user-info').innerText = `${data.division} | ${data.position}`;
+                document.getElementById('login-screen').classList.remove('active');
+                document.getElementById('app-screen').classList.add('active');
+            } else { alert("Invalid Credentials"); }
+        };
+
+        window.switchTab = function(id, el) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            el.classList.add('active');
+            if (id === 'status-view') loadStatus();
+        };
+
+        async function loadStatus() {
+            const list = document.getElementById('status-list');
+            list.innerHTML = "Fetching...";
+            const { data: tos } = await supabase.from('travel_orders').select('*').eq('emp_id', currentUser.emp_id).order('to_no', {ascending: false});
+            
+            let html = '';
+            for(let to of tos || []) {
+                const isApproved = to.status === 'APPROVED';
+                const badgeCls = isApproved ? 'bg-approved' : 'bg-pending';
+                
+                html += `
+                    <div class="card">
+                        <span class="badge ${badgeCls}">${to.status}</span>
+                        <div style="font-weight:bold;">${to.to_no}</div>
+                        <div style="font-size:12px; margin-top:5px;">Transport: ${to.transport}</div>
+                        
+                        ${isApproved ? `
+                            <button class="btn btn-print" onclick="generateOfficialPDF('${to.to_no}')">
+                                🖨️ PRINT OFFICIAL TO (PDF)
+                            </button>
+                        ` : ''}
+                    </div>`;
+            }
+            list.innerHTML = html || "No records.";
+        }
+
+        // OFFICIAL PDF MAPPING LOGIC
+        window.generateOfficialPDF = async function(toNo) {
+            const { data: toData } = await supabase.from('travel_orders').select('*').eq('to_no', toNo);
+            const { data: itinData } = await supabase.from('itinerary').select('*').eq('to_no', toNo).order('travel_date');
+            
+            if(!toData || toData.length === 0) return alert("Error fetching TO data.");
+
+            const pdf = new jsPDF();
+            const copies = ["ORIGINAL", "DUPLICATE", "TRIPLICATE"];
+            
+            // Collect all names for group TO
+            const names = toData.map(t => t.emp_name.toUpperCase()).join(", ");
+            const mainTO = toData[0];
+
+            copies.forEach((label, index) => {
+                if (index > 0) pdf.addPage();
+
+                // 1. Header Logic
+                pdf.setFontSize(7);
+                pdf.text(label, 180, 10);
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(16);
+                pdf.text(`TRAVEL ORDER NO. ${toNo}`, 105, 40, { align: "center" });
+
+                // 2. Official Warnings
+                pdf.setFontSize(9);
+                pdf.setTextColor(192, 0, 0); // Red
+                if(mainTO.remarks === "PSO_OVERRIDE") pdf.text("WITH EXISTING PSO/TO, SUBJECT FOR PARPO'S APPROVAL", 105, 48, { align: "center" });
+                if(mainTO.transport === "GOV'T VEHICLE") pdf.text("NOT VALID FOR TRANSPORTATION REIMBURSEMENT CLAIM", 105, 52, { align: "center" });
+                pdf.setTextColor(0,0,0);
+
+                // 3. Personnel Details Mapping
+                pdf.setFontSize(11);
+                pdf.text("NAME:", 15, 65);
+                pdf.setFont("helvetica", "normal");
+                pdf.text(names, 45, 65);
+                pdf.line(45, 66, 195, 66);
+
+                pdf.setFont("helvetica", "bold");
+                pdf.text("POSITION:", 15, 75);
+                pdf.setFont("helvetica", "normal");
+                pdf.text(currentUser.position.toUpperCase(), 45, 75);
+                pdf.line(45, 76, 100, 76);
+
+                pdf.setFont("helvetica", "bold");
+                pdf.text("STATION:", 110, 75);
+                pdf.setFont("helvetica", "normal");
+                pdf.text(currentUser.station ? currentUser.station.toUpperCase() : "DARPO CS I", 135, 75);
+                pdf.line(135, 76, 195, 76);
+
+                // 4. Itinerary Mapping
+                pdf.setFont("helvetica", "bold");
+                pdf.text("DESTINATION:", 15, 95);
+                const destStr = itinData.map(i => `${i.destination} (${i.travel_date})`).join(", ");
+                pdf.setFont("helvetica", "normal");
+                pdf.setFontSize(9);
+                pdf.text(destStr, 45, 95, { maxWidth: 150 });
+
+                // 5. Signatory Mapping
+                const sigY = 160;
+                pdf.setFontSize(10);
+                pdf.text("Recommended by:", 15, sigY);
+                
+                pdf.setFont("helvetica", "bold");
+                pdf.text("GERRY L. MATAMOROSA", 45, sigY + 15, { align: "center" });
+                pdf.line(15, sigY + 16, 75, sigY + 16);
+                pdf.setFont("helvetica", "normal");
+                pdf.text("Division Chief", 45, sigY + 20, { align: "center" });
+
+                pdf.setFont("helvetica", "bold");
+                pdf.text("RICARDO C. GARCIA", 150, sigY + 15, { align: "center" });
+                pdf.line(120, sigY + 16, 185, sigY + 16);
+                pdf.setFont("helvetica", "normal");
+                pdf.text("PARPO II", 150, sigY + 20, { align: "center" });
+            });
+
+            pdf.save(`TO_${toNo}.pdf`);
+        };
+    </script>
+</body>
+</html>
