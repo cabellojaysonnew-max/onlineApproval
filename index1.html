@@ -2,24 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DAR CS I - Mobile Portal</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>DAR CS I - Unified Portal</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#003811">
+    <link id="pwa-manifest" rel="manifest">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
     <style>
+        /* =========================================
+           EMPLOYEE PORTAL CSS (Scoped & Protected)
+           ========================================= */
         :root {
             --dar-green: #003811;
+            --dar-light: #006400;
             --dar-gold: #D4AF37;
             --bg-main: #f4f7f6;
             --card-bg: #ffffff;
             --text-main: #1f2937;
+            --text-muted: #6b7280;
             --danger: #dc2626;
             --success: #16a34a;
+            --warning: #f59e0b;
         }
 
-        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
-        body { margin: 0; background-color: var(--bg-main); color: var(--text-main); }
-
+        .emp-body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--bg-main); color: var(--text-main); -webkit-tap-highlight-color: transparent; }
+        
         .screen { display: none; }
         .screen.active { display: block; animation: fadeIn 0.3s ease; }
         .view { display: none; padding: 15px; padding-bottom: 120px; }
@@ -27,206 +41,1001 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         .app-header { background: var(--dar-green); color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; border-bottom: 3px solid var(--dar-gold); }
-        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 15px; border: 1px solid #e5e7eb; }
+        .emp-card { background: var(--card-bg); padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 15px; border: 1px solid #e5e7eb; }
         
-        label { display: block; font-size: 11px; font-weight: bold; color: #6b7280; margin-bottom: 4px; }
-        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; margin-bottom: 12px; }
+        .emp-card h4 { margin-top: 0; color: var(--dar-green); font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 12px; font-weight: bold; }
+        .emp-card label { display: block; font-size: 11px; font-weight: bold; color: var(--text-muted); margin-bottom: 4px; }
+        .emp-card input, .emp-card select, .emp-card textarea { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; margin-bottom: 12px; }
 
-        .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .emp-btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; transition: 0.2s; margin-bottom: 8px; }
+        .emp-btn:active { transform: scale(0.98); opacity: 0.8; }
         .btn-primary { background: var(--dar-green); }
         .btn-gold { background: var(--dar-gold); color: var(--dar-green); }
         .btn-danger { background: var(--danger); }
-        .btn-print { background: #1e293b; font-size: 12px; padding: 10px; margin-top: 10px; }
+        .btn-success { background: var(--success); }
+        .btn-warning { background: var(--warning); }
+        
+        .action-group { display: flex; gap: 8px; margin-top: 10px; }
+        .btn-small { padding: 8px; font-size: 11px; flex: 1; margin-bottom: 0; }
+
+        .cal-container { background: white; border-radius: 8px; overflow-x: auto; }
+        .cal-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .cal-table th { background: var(--dar-green); color: white; padding: 10px; text-align: left; position: sticky; top: 0; font-weight: bold; }
+        .cal-table td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+        .day-num { font-weight: bold; font-size: 14px; color: var(--dar-green); }
+        .cal-entry { margin-bottom: 4px; padding: 4px; border-radius: 4px; color: white; font-weight: bold; font-size: 10px; }
+        .entry-to { background: var(--dar-green); }
+        .entry-pso { background: var(--dar-gold); color: #003811; }
+        .entry-holiday { background: var(--danger); }
 
         .bottom-nav { position: fixed; bottom: 0; width: 100%; background: var(--dar-green); display: flex; z-index: 1000; padding-bottom: env(safe-area-inset-bottom); }
-        .nav-item { flex: 1; padding: 15px 0; text-align: center; color: #9ca3af; font-size: 10px; font-weight: bold; cursor: pointer; }
-        .nav-item.active { color: var(--dar-gold); border-top: 3px solid var(--dar-gold); }
+        .nav-item { flex: 1; padding: 15px 0; text-align: center; color: #9ca3af; font-size: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .nav-item.active { color: var(--dar-gold); border-top: 3px solid var(--dar-gold); background: rgba(255,255,255,0.05); }
 
-        .badge { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: bold; text-transform: uppercase; float: right; }
-        .bg-approved { background: #ecfdf5; color: #166534; }
+        .emp-badge { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: bold; text-transform: uppercase; float: right; }
         .bg-pending { background: #fefce8; color: #854d0e; }
+        .bg-approved { background: #ecfdf5; color: #166534; }
+        .bg-cancelled { background: #fef2f2; color: #991b1b; }
+        
+        .search-results { background: white; border: 1px solid #ddd; border-radius: 8px; max-height: 150px; overflow-y: auto; margin-top: -10px; margin-bottom: 10px; display: none; }
+        .search-row { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; cursor: pointer; }
+
+        .qr-maximized { position: fixed !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; width: 85vw !important; height: 85vw !important; max-width: 400px !important; max-height: 400px !important; z-index: 9999 !important; box-shadow: 0 0 0 2000px rgba(0,0,0,0.85) !important; background: white !important; border: 4px solid var(--dar-gold) !important; cursor: pointer; }
+
+        /* =========================================
+           ADMIN PORTAL & GLOBAL CSS (Tailwind Base)
+           ========================================= */
+        .dar-green { background-color: #003811; }
+        .text-dar-green { color: #003811; }
+        .dar-gold { background-color: #D4AF37; }
+        .text-dar-gold { color: #D4AF37; }
+        
+        html, body { overscroll-behavior-y: none; }
+        ::-webkit-scrollbar { display: none; }
+        .modal-fade { animation: fadeIn 0.2s ease-in-out; }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
-<body>
+<body class="h-[100dvh] w-full flex flex-col overflow-hidden bg-gray-100 text-left">
 
-    <div id="login-screen" class="screen active">
-        <div style="height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 25px;">
-            <div class="card" style="padding: 35px 25px;">
-                <h2 style="color: var(--dar-green); text-align: center; margin: 0;">DAR PORTAL</h2>
-                <p style="text-align: center; font-size: 12px; color: gray; margin-bottom: 25px; font-weight: bold;">CAMARINES SUR I - MOBILE</p>
-                <input type="text" id="login-id" placeholder="Employee ID">
-                <input type="password" id="login-pass" placeholder="Password">
-                <button class="btn btn-primary" onclick="handleLogin()">SECURE LOGIN</button>
+    <div id="master-landing" class="h-full w-full flex flex-col justify-center items-center bg-[#f4f7f6] p-6 z-50 absolute inset-0">
+        <div class="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm border-t-8 border-[#D4AF37] text-center">
+            <h1 class="text-4xl font-black text-[#003811] mb-1">DAR</h1>
+            <p class="text-xs text-gray-500 mb-8 font-bold tracking-widest">CAM SUR I - UNIFIED PORTAL</p>
+            
+            <button onclick="selectPortal('employee')" class="w-full mb-4 py-4 bg-[#003811] text-white rounded-xl font-bold text-lg shadow-md transition active:scale-95 flex justify-center items-center gap-2">
+                👤 EMPLOYEE PORTAL
+            </button>
+            
+            <button onclick="selectPortal('admin')" class="w-full py-4 bg-[#D4AF37] text-[#003811] rounded-xl font-bold text-lg shadow-md transition active:scale-95 flex justify-center items-center gap-2">
+                ⚙️ ADMIN CONSOLE
+            </button>
+        </div>
+    </div>
+
+    <div id="employee-portal" class="emp-body h-full w-full hidden absolute inset-0 overflow-y-auto">
+        
+        <div id="emp-login-screen" class="screen active">
+            <div style="height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 25px;">
+                <button onclick="backToMaster()" class="mb-4 text-dar-green font-bold text-sm text-left">← Back to Selection</button>
+                <div class="emp-card" style="padding: 35px 25px; border-top: 6px solid var(--dar-gold); box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+                    <h2 style="color: var(--dar-green); text-align: center; margin: 0; font-size: 24px; font-weight:bold;">EMPLOYEE LOGIN</h2>
+                    <p style="text-align: center; font-size: 12px; color: gray; margin-bottom: 25px; font-weight: bold;">CAMARINES SUR I</p>
+                    <input type="text" id="emp-login-id" placeholder="Employee ID" inputmode="numeric" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 12px;">
+                    <input type="password" id="emp-login-pass" placeholder="Password" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 12px;">
+                    <button class="emp-btn btn-primary" onclick="handleEmpLogin()">SECURE LOGIN</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="emp-app-screen" class="screen">
+            <div class="app-header">
+                <div>
+                    <div id="emp-name" style="font-weight: bold; font-size: 14px;">User</div>
+                    <div id="emp-info" style="font-size: 10px; color: var(--dar-gold); font-weight: bold;">Division | Position</div>
+                </div>
+                <button onclick="empLogout()" style="background: none; border: 1px solid white; color: white; border-radius: 4px; padding: 4px 8px; font-size: 11px; font-weight:bold;">Logout</button>
+            </div>
+
+            <div id="apply-view" class="view active">
+                <div class="emp-card" style="text-align: center;">
+                    <button class="emp-btn btn-gold btn-small" onclick="showEmployeeQR()" style="margin: 0;">Generate My QR Code</button>
+                    <div id="my-qr-container" style="display: none; margin-top: 15px;">
+                        <img id="my-qr-img" src="" alt="QR Code" onclick="this.classList.toggle('qr-maximized')" style="width: 150px; height: 150px; border-radius: 8px; border: 2px solid var(--dar-green); padding: 5px; cursor: pointer; transition: all 0.3s ease; display:inline-block;">
+                        <div style="font-size: 12px; font-weight: bold; margin-top: 5px; color: var(--dar-green);" id="my-qr-text"></div>
+                        <div style="font-size: 9px; color: gray; margin-top: 2px;">(Tap QR to enlarge)</div>
+                    </div>
+                </div>
+
+                <div class="emp-card">
+                    <h4>1. Personnel (Max 5)</h4>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="text" id="emp-search" placeholder="Search Name or ID" style="margin-bottom: 0;">
+                        <button class="emp-btn btn-primary" style="width: 70px; padding:0; height: 45px; margin-bottom:0;" onclick="searchEmployees()">Find</button>
+                    </div>
+                    <div id="search-results" class="search-results"></div>
+                    <div id="personnel-draft-list" style="margin-top: 10px;"></div>
+                </div>
+
+                <div class="emp-card">
+                    <h4>2. Logistics</h4>
+                    <label>Means of Transportation</label>
+                    <select id="to-transport">
+                        <option value="LAND">Public Utility (LAND)</option>
+                        <option value="GOV'T VEHICLE">Gov't Vehicle</option>
+                        <option value="AIR">Air Travel</option>
+                        <option value="OTHERS">Others</option>
+                    </select>
+                </div>
+
+                <div class="emp-card">
+                    <h4>3. Itinerary Builder</h4>
+                    <label>Date Range (From - To, Max 5 days)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="date" id="itin-from" onchange="handleStartDateChange()" onkeydown="return false">
+                        <input type="date" id="itin-to" onchange="generateItinFields()" onkeydown="return false">
+                    </div>
+                    <div id="dynamic-itin-fields" style="margin-top: 15px;"></div>
+                </div>
+                <button class="emp-btn btn-gold" id="btn-submit-to" onclick="submitTO()">🚀 SUBMIT OFFICIAL REQUEST</button>
+            </div>
+
+            <div id="status-view" class="view">
+                <h3 style="color: var(--dar-green); font-weight:bold; font-size:18px; margin-bottom:15px; margin-top:0;">APPLICATIONS</h3>
+                <div id="status-list"></div>
+            </div>
+
+            <div id="calendar-view" class="view">
+                <h3 style="color: var(--dar-green); font-weight:bold; font-size:18px; margin-bottom:15px; margin-top:0;">Personal Activity Schedule</h3>
+                <div class="emp-card" style="padding:0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f0f4f8; border-radius:12px 12px 0 0;">
+                        <button onclick="changeCalMonth(-1)" class="emp-btn btn-primary" style="width:auto; padding:5px 15px; margin:0;">&lt;</button>
+                        <div id="cal-month-year" style="font-weight:bold; color:var(--dar-green);"></div>
+                        <button onclick="changeCalMonth(1)" class="emp-btn btn-primary" style="width:auto; padding:5px 15px; margin:0;">&gt;</button>
+                    </div>
+                    <div class="cal-container">
+                        <table class="cal-table">
+                            <thead>
+                                <tr><th>Day</th><th>Schedule / Details</th></tr>
+                            </thead>
+                            <tbody id="cal-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="security-view" class="view">
+                <h3 style="color: var(--dar-green); font-weight:bold; font-size:18px; margin-bottom:15px; margin-top:0;">Security</h3>
+                <div class="emp-card">
+                    <h4>Update Portal Password</h4>
+                    <label>Current Password</label>
+                    <input type="password" id="emp-pass-curr">
+                    <label>New Password</label>
+                    <input type="password" id="emp-pass-new">
+                    <label>Confirm Password</label>
+                    <input type="password" id="emp-pass-conf">
+                    <button class="emp-btn btn-primary" onclick="empChangePassword()">UPDATE PASSWORD</button>
+                </div>
+            </div>
+
+            <div class="bottom-nav">
+                <div class="nav-item active" onclick="empSwitchTab('apply-view', this)">📝 Apply</div>
+                <div class="nav-item" onclick="empSwitchTab('status-view', this)">📋 Status</div>
+                <div class="nav-item" onclick="empSwitchTab('calendar-view', this)">📅 Calendar</div>
+                <div class="nav-item" onclick="empSwitchTab('security-view', this)">🔒 Security</div>
             </div>
         </div>
     </div>
 
-    <div id="app-screen" class="screen">
-        <div class="app-header">
-            <div>
-                <div id="user-name" style="font-weight: bold; font-size: 14px;">User</div>
-                <div id="user-info" style="font-size: 10px; color: var(--dar-gold); font-weight: bold;">Division | Position</div>
-            </div>
-            <button onclick="location.reload()" style="background:none; border:1px solid white; color:white; padding:4px 8px; font-size:10px;">Logout</button>
-        </div>
-
-        <div id="apply-view" class="view active">
-            <div class="card">
-                <h4>Itinerary Builder</h4>
-                <label>Destination</label>
-                <input type="text" id="itin-dest" placeholder="Where to?">
-                <label>Purpose</label>
-                <textarea id="itin-purp" rows="2"></textarea>
-                <label>Report To (Required)</label>
-                <input type="text" id="to-report" placeholder="Official to report to">
-                <button class="btn btn-primary" onclick="submitTO()">🚀 SUBMIT TO</button>
-            </div>
-        </div>
-
-        <div id="status-view" class="view">
-            <h3 style="color: var(--dar-green);">My Applications</h3>
-            <div id="status-list"></div>
-        </div>
-
-        <div class="bottom-nav">
-            <div class="nav-item active" onclick="switchTab('apply-view', this)">📝 Apply</div>
-            <div class="nav-item" onclick="switchTab('status-view', this)">📋 Status</div>
-        </div>
+    <div id="admin-portal" class="h-full w-full hidden absolute inset-0 text-gray-800 bg-gray-100 flex flex-col">
+        <div id="admin-app" class="w-full h-full flex flex-col relative"></div>
     </div>
 
-    <script type="module">
-        const { jsPDF } = window.jspdf;
-        const supabaseUrl = 'https://ytfpiyfapvybihlngxks.supabase.co';
-        const supabaseKey = 'sb_publishable_poSZUQ9HI4wcY9poEo5b1w_Z-pAJbKo'; 
-        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    <script>
+        // ==========================================
+        // SHARED SUPABASE CONFIGURATION
+        // ==========================================
+        const SUPABASE_URL = "https://ytfpiyfapvybihlngxks.supabase.co";
+        // Using the standard anon key from File 1 for shared access across both portals
+        const SUPABASE_KEY = 'sb_publishable_poSZUQ9HI4wcY9poEo5b1w_Z-pAJbKo'; 
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let currentUser = null;
+        // PWA Manifest Injection
+        const manifestData = {
+            "name": "DAR Cam Sur 1 Unified",
+            "short_name": "DAR Portal",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#F3F4F6",
+            "theme_color": "#003811",
+            "icons": [{"src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzAwMzgxMSIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iI0Q0QUYzNyI+RDwvdGV4dD48L3N2Zz4=","sizes": "192x192","type": "image/svg+xml"}]
+        };
+        document.getElementById('pwa-manifest').setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestData)));
 
-        window.handleLogin = async function() {
-            const id = document.getElementById('login-id').value.trim();
-            const pass = document.getElementById('login-pass').value.trim();
-            const { data } = await supabase.from('employees').select('*').eq('emp_id', id).single();
+        // NAVIGATION LOGIC
+        function selectPortal(portal) {
+            document.getElementById('master-landing').classList.add('hidden');
+            if (portal === 'employee') {
+                document.getElementById('employee-portal').classList.remove('hidden');
+            } else if (portal === 'admin') {
+                document.getElementById('admin-portal').classList.remove('hidden');
+                adminRender();
+            }
+        }
+
+        function backToMaster() {
+            document.getElementById('employee-portal').classList.add('hidden');
+            document.getElementById('admin-portal').classList.add('hidden');
+            document.getElementById('master-landing').classList.remove('hidden');
+        }
+
+        // ==========================================
+        // EMPLOYEE PORTAL LOGIC (File 1)
+        // ==========================================
+        let currentEmp = null; 
+        let itineraryDraft = []; 
+        let personnelDraft = []; 
+        const todayStr = new Date().toISOString().split('T')[0]; 
+        let calDate = new Date(); 
+        let isSubmitting = false; 
+        let conflictsToProcess = []; 
+
+        const urlToBase64 = async (url) => {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) return null;
+                const blob = await response.blob();
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                });
+            } catch (e) { return null; }
+        };
+
+        window.handleEmpLogin = async function() {
+            const id = document.getElementById('emp-login-id').value.trim();
+            const pass = document.getElementById('emp-login-pass').value.trim();
+            const { data } = await supabaseClient.from('employees').select('*').eq('emp_id', id).single();
+            
             if (data && data.pass === pass) {
-                currentUser = data;
-                document.getElementById('user-name').innerText = data.full_name;
-                document.getElementById('user-info').innerText = `${data.division} | ${data.position}`;
-                document.getElementById('login-screen').classList.remove('active');
-                document.getElementById('app-screen').classList.add('active');
+                currentEmp = data;
+                document.getElementById('emp-name').innerText = data.full_name;
+                document.getElementById('emp-info').innerText = `${data.division} | ${data.position}`; 
+                document.getElementById('emp-login-screen').classList.remove('active');
+                document.getElementById('emp-app-screen').classList.add('active');
+                document.getElementById('itin-from').min = todayStr;
+                document.getElementById('itin-to').min = todayStr;
+                personnelDraft = [{ emp_id: data.emp_id, name: data.full_name, unit: data.unit }];
+                renderPersonnel();
             } else { alert("Invalid Credentials"); }
         };
 
-        window.switchTab = function(id, el) {
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        window.empLogout = function() {
+            currentEmp = null;
+            document.getElementById('emp-login-id').value = '';
+            document.getElementById('emp-login-pass').value = '';
+            document.getElementById('emp-app-screen').classList.remove('active');
+            document.getElementById('emp-login-screen').classList.add('active');
+            backToMaster();
+        };
+
+        window.empSwitchTab = function(id, el) {
+            document.querySelectorAll('#employee-portal .view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('#employee-portal .nav-item').forEach(n => n.classList.remove('active'));
             document.getElementById(id).classList.add('active');
             el.classList.add('active');
             if (id === 'status-view') loadStatus();
+            if (id === 'calendar-view') renderCalendar();
+        };
+
+        window.showEmployeeQR = function() {
+            const container = document.getElementById('my-qr-container');
+            const img = document.getElementById('my-qr-img');
+            const text = document.getElementById('my-qr-text');
+            if (container.style.display === 'none') {
+                img.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${currentEmp.emp_id}`;
+                text.innerText = `EMP ID: ${currentEmp.emp_id}`;
+                container.style.display = 'block';
+            } else { container.style.display = 'none'; }
+        };
+
+        window.searchEmployees = async function() {
+            const term = document.getElementById('emp-search').value;
+            if (term.length < 2) return;
+            const { data } = await supabaseClient.from('employees').select('emp_id, full_name, unit').or(`full_name.ilike.%${term}%,emp_id.eq.${term}`).limit(5);
+            const resDiv = document.getElementById('search-results');
+            resDiv.innerHTML = ''; resDiv.style.display = 'block';
+            data.forEach(emp => {
+                const row = document.createElement('div'); row.className = 'search-row';
+                row.innerHTML = `${emp.full_name} (${emp.emp_id})`;
+                row.onclick = () => {
+                    if (personnelDraft.length >= 5) return alert("Max 5 Personnel");
+                    if (personnelDraft.some(p => p.emp_id === emp.emp_id)) return;
+                    personnelDraft.push({ emp_id: emp.emp_id, name: emp.full_name, unit: emp.unit });
+                    resDiv.style.display = 'none'; document.getElementById('emp-search').value = ''; renderPersonnel();
+                };
+                resDiv.appendChild(row);
+            });
+        };
+
+        function renderPersonnel() {
+            const list = document.getElementById('personnel-draft-list');
+            list.innerHTML = personnelDraft.map((p, i) => `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#f0f4f8; padding:8px 12px; border-radius:8px; margin-bottom:5px; font-size:13px;">
+                    <span>👤 ${p.name}</span>
+                    ${p.emp_id !== currentEmp.emp_id ? `<button class="emp-btn btn-danger" style="padding:2px 8px; width:auto; margin:0;" onclick="removePersonnel(${i})">X</button>` : ''}
+                </div>`).join('');
+        }
+        window.removePersonnel = (i) => { personnelDraft.splice(i,1); renderPersonnel(); };
+
+        window.handleStartDateChange = function() {
+            const fromDate = document.getElementById('itin-from').value;
+            if (fromDate) {
+                document.getElementById('itin-to').value = fromDate;
+                generateItinFields();
+            }
+        };
+
+        window.generateItinFields = async function() {
+            const fromDate = document.getElementById('itin-from').value;
+            const toDate = document.getElementById('itin-to').value;
+            const container = document.getElementById('dynamic-itin-fields');
+            container.innerHTML = ''; itineraryDraft = []; conflictsToProcess = []; 
+            
+            if (!fromDate || !toDate) return;
+            if (fromDate < todayStr) return alert("No backdating allowed.");
+            if (toDate < fromDate) return alert("End date cannot be before Start date.");
+            
+            const start = new Date(fromDate);
+            const end = new Date(toDate);
+            const diffDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1;
+            if (diffDays > 5) return alert("Maximum of 5 days allowed.");
+
+            const { data: psos } = await supabaseClient.from('pso_records').select('*').eq('emp_id', currentEmp.emp_id);
+            const { data: activeTOs } = await supabaseClient.from('travel_orders').select('*').eq('emp_id', currentEmp.emp_id).not('status', 'ilike', '%CANCELLED%');
+            let hasPSO = false;
+
+            let currentDt = new Date(start);
+            for (let i = 0; i < diffDays; i++) {
+                const dateStr = currentDt.toISOString().split('T')[0];
+                
+                if(psos?.some(p => dateStr >= p.start_date && dateStr <= p.end_date)) {
+                    if(!confirm(`Conflict: Existing PSO on ${dateStr}. Reminding: TO cannot supersede PSO. Continue?`)) { container.innerHTML = ""; return; }
+                    hasPSO = true; 
+                }
+
+                for (let to of activeTOs || []) {
+                    const { data: itins } = await supabaseClient.from('itinerary').select('*').eq('to_no', to.to_no).eq('travel_date', dateStr);
+                    if (itins && itins.length > 0) {
+                        const isApproved = to.status === 'APPROVED';
+                        const isDisapproved = to.status.includes('DISAPPROVED');
+                        
+                        if (isDisapproved) {
+                            alert(`Conflict: You have a DISAPPROVED TO (${to.to_no}) on ${dateStr}. Overwriting is not allowed. Please select a different date.`);
+                            container.innerHTML = ""; return;
+                        }
+
+                        const promptMsg = isApproved ? `Conflict: Approved TO ${to.to_no} exists on ${dateStr}. Overwrite? (This will trigger SPLIT logic for multi-day TOs)` : `Conflict: Pending TO ${to.to_no} exists on ${dateStr}. Overwrite?`;
+                        if (confirm(promptMsg)) {
+                            conflictsToProcess.push({ to_no: to.to_no, status: to.status, affected_date: dateStr });
+                        } else { container.innerHTML = ""; return; } 
+                    }
+                }
+
+                const cardId = `card-${i}`;
+                container.innerHTML += `
+                    <div class="emp-card" id="${cardId}" style="border-left: 4px solid var(--dar-green);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <h5 style="margin: 0; color: var(--dar-green); font-size: 13px; font-weight:bold;">📅 ${dateStr} ${hasPSO ? '<span style="color:red; font-size:9px;">(HAS PSO)</span>' : ''}</h5>
+                            <button onclick="removeItinCard('${cardId}', '${dateStr}')" style="background:none; border:none; color:red; font-size:11px; font-weight:bold; cursor:pointer;">DELETE</button>
+                        </div>
+                        <input type="text" id="dest-${i}" placeholder="Destination">
+                        ${i > 0 ? `<label style="display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: normal; margin-bottom: 8px; color: var(--text-muted); cursor: pointer; white-space:nowrap;"><input type="checkbox" style="width: auto; margin: 0; padding: 0;" onchange="if(this.checked) document.getElementById('purp-${i}').value = document.getElementById('purp-${i-1}').value; else document.getElementById('purp-${i}').value = '';"> Copy previous purpose</label>` : ''}
+                        <textarea id="purp-${i}" rows="2" placeholder="Purpose"></textarea>
+                        <input type="text" id="rep-${i}" placeholder="Report To">
+                    </div>`;
+                itineraryDraft.push({ date: dateStr, destId: `dest-${i}`, purpId: `purp-${i}`, repId: `rep-${i}`, cardId, hasPSO });
+                currentDt.setDate(currentDt.getDate() + 1);
+            }
+        };
+
+        window.removeItinCard = (cardId, date) => {
+            if(!confirm(`Remove ${date}?`)) return;
+            document.getElementById(cardId).remove();
+            itineraryDraft = itineraryDraft.filter(it => it.cardId !== cardId);
+        };
+
+        window.submitTO = async function() {
+            if (isSubmitting) return;
+            if (itineraryDraft.length === 0) return alert("Itinerary is empty.");
+            
+            const batchItin = []; const reportTos = new Set();
+            for (let it of itineraryDraft) {
+                const dest = document.getElementById(it.destId).value.trim();
+                const purp = document.getElementById(it.purpId).value.trim();
+                const rep = document.getElementById(it.repId).value.trim();
+                if (!dest || !purp || !rep) return alert(`Fill all fields for ${it.date}.`);
+                batchItin.push({ travel_date: it.date, destination: dest, purpose: purp });
+                reportTos.add(rep);
+            }
+
+            isSubmitting = true;
+            const submitBtn = document.getElementById('btn-submit-to');
+            if(submitBtn) { submitBtn.disabled = true; submitBtn.innerText = "Processing Logic..."; }
+
+            try {
+                for (let conflict of conflictsToProcess) {
+                    if (conflict.status.includes("PENDING")) {
+                        await supabaseClient.from('itinerary').delete().eq('to_no', conflict.to_no);
+                        await supabaseClient.from('travel_orders').delete().eq('to_no', conflict.to_no);
+                    } else if (conflict.status === "APPROVED") {
+                        const { data: oldItin } = await supabaseClient.from('itinerary').select('*').eq('to_no', conflict.to_no).order('travel_date');
+                        const remainingDays = oldItin.filter(day => day.travel_date !== conflict.affected_date);
+                        
+                        await supabaseClient.from('travel_orders').update({ status: 'CANCELLED' }).eq('to_no', conflict.to_no);
+
+                        await supabaseClient.from('notifications').insert({ 
+                            emp_id: currentEmp.emp_id, 
+                            message: `Approved TO ${conflict.to_no} was split/overwritten by ${currentEmp.full_name}. Affected date: ${conflict.affected_date}`,
+                            sender: currentEmp.full_name
+                        });
+
+                        if (remainingDays.length > 0) {
+                            const remainderToNo = await generateToNo();
+                            const { data: origTO } = await supabaseClient.from('travel_orders').select('*').eq('to_no', conflict.to_no);
+                            const batchRemainder = origTO.map(p => ({ ...p, id: undefined, to_no: remainderToNo, status: 'APPROVED' }));
+                            const batchRemainderItin = remainingDays.map(i => ({ ...i, id: undefined, to_no: remainderToNo }));
+                            await supabaseClient.from('travel_orders').insert(batchRemainder);
+                            await supabaseClient.from('itinerary').insert(batchRemainderItin);
+                        }
+                    }
+                }
+
+                const finalToNo = await generateToNo(); 
+                const transport = document.getElementById('to-transport').value;
+                let routeStatus = "PENDING_CHIEF";
+                const isMARPO = currentEmp.position && currentEmp.position.toUpperCase().includes("MARPO");
+
+                if (transport === "GOV'T VEHICLE") routeStatus = "PENDING_VEHICLE_APPROVER"; 
+                else if (currentEmp.unit === "PARPO") routeStatus = "PENDING_PARPO";
+                else if (isMARPO) routeStatus = "PENDING_CHIEF";
+                else if (currentEmp.unit && currentEmp.unit.trim() !== "") routeStatus = "PENDING_UNIT_HEAD";
+
+                const batchPersonnel = personnelDraft.map(p => ({
+                    to_no: finalToNo, emp_id: p.emp_id, emp_name: p.name, unit: p.unit, 
+                    division: currentEmp.division, status: routeStatus, transport, 
+                    report_to: Array.from(reportTos).join(", "),
+                    remarks: itineraryDraft.some(it => it.hasPSO) ? "EXISTING PSO" : ""
+                }));
+                
+                batchItin.forEach(it => it.to_no = finalToNo);
+                await supabaseClient.from('travel_orders').insert(batchPersonnel);
+                await supabaseClient.from('itinerary').insert(batchItin);
+                
+                alert("Logic Executed. Submitted: " + finalToNo);
+                
+                document.getElementById('itin-from').value = '';
+                document.getElementById('itin-to').value = '';
+                document.getElementById('dynamic-itin-fields').innerHTML = '';
+                document.getElementById('to-transport').selectedIndex = 0;
+                personnelDraft = [{ emp_id: currentEmp.emp_id, name: currentEmp.full_name, unit: currentEmp.unit }];
+                renderPersonnel();
+                itineraryDraft = [];
+                conflictsToProcess = [];
+                empSwitchTab('status-view', document.querySelectorAll('#employee-portal .nav-item')[1]);
+                
+            } catch(e) { 
+                alert("Error: " + e.message); 
+            } finally {
+                isSubmitting = false;
+                if(submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "🚀 SUBMIT OFFICIAL REQUEST"; }
+            }
+        };
+
+        async function generateToNo() {
+            const year = new Date().getFullYear();
+            const div = (currentEmp.division || "GEN").trim().substring(0, 5).toUpperCase();
+            const { data } = await supabaseClient.from('travel_orders')
+                .select('to_no')
+                .like('to_no', `${year}-${div}-%`)
+                .order('to_no', { ascending: false })
+                .limit(1);
+            
+            let seq = 1;
+            if (data && data.length > 0 && data[0].to_no) {
+                const parts = data[0].to_no.split('-');
+                if (parts.length >= 3) {
+                    const parsed = parseInt(parts[2], 10);
+                    if (!isNaN(parsed)) seq = parsed + 1; 
+                }
+            }
+            return `${year}-${div}-${String(seq).padStart(5, '0')}`;
+        }
+
+        window.deletePendingTO = async function(toNo) {
+            if(!confirm(`Permanently delete Pending TO ${toNo}?`)) return;
+            await supabaseClient.from('itinerary').delete().eq('to_no', toNo);
+            await supabaseClient.from('travel_orders').delete().eq('to_no', toNo);
+            loadStatus();
+        };
+
+        window.cancelApprovedTO = async function(toNo) {
+            if(!confirm(`Cancel Approved TO ${toNo}? PARPO will be notified.`)) return;
+            await supabaseClient.from('travel_orders').update({ status: 'CANCELLED' }).eq('to_no', toNo);
+            await supabaseClient.from('notifications').insert({ recipient_role: 'PARPO', message: `Approved TO ${toNo} was cancelled by ${currentEmp.full_name}`, to_no: toNo });
+            loadStatus();
+        };
+
+        window.modifyPendingTO = async function(toNo) {
+            if(!confirm("Load this TO back into draft for modification? (Old pending record will be removed)")) return;
+            const { data: to } = await supabaseClient.from('travel_orders').select('*').eq('to_no', toNo).single();
+            const { data: itin } = await supabaseClient.from('itinerary').select('*').eq('to_no', toNo).order('travel_date');
+            
+            document.getElementById('to-transport').value = to.transport;
+            if (itin.length > 0) {
+                document.getElementById('itin-from').value = itin[0].travel_date;
+                document.getElementById('itin-to').value = itin[itin.length - 1].travel_date;
+            }
+
+            const container = document.getElementById('dynamic-itin-fields');
+            container.innerHTML = ''; itineraryDraft = [];
+
+            itin.forEach((i, idx) => {
+                const cardId = `itin-card-${idx}`;
+                container.innerHTML += `
+                    <div class="emp-card" id="${cardId}" style="padding:10px; margin-bottom: 10px; box-shadow: none; border: 1px solid #e5e7eb; border-left: 4px solid var(--dar-green);">
+                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                             <h5 style="margin: 0; color: var(--dar-green); font-size: 13px; font-weight:bold;">📅 ${i.travel_date}</h5>
+                             <span style="color:var(--danger); font-size:11px; font-weight:bold; cursor:pointer;" onclick="removeItinCard('${cardId}', '${i.travel_date}')">DELETE</span>
+                        </div>
+                        <input type="text" id="dest-${idx}" placeholder="Destination" value="${i.destination}" style="padding:8px; font-size:13px; margin-bottom:8px;">
+                        ${idx > 0 ? `<label style="display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: normal; margin-bottom: 8px; color: var(--text-muted); cursor: pointer; white-space:nowrap;"><input type="checkbox" style="width: auto; margin: 0; padding: 0;" onchange="if(this.checked) document.getElementById('purp-${idx}').value = document.getElementById('purp-${idx-1}').value; else document.getElementById('purp-${idx}').value = '';"> Copy previous purpose</label>` : ''}
+                        <textarea id="purp-${idx}" rows="2" placeholder="Purpose" style="padding:8px; font-size:13px; margin-bottom:8px;">${i.purpose}</textarea>
+                        <input type="text" id="rep-${idx}" placeholder="Report To" value="${to.report_to}" style="padding:8px; font-size:13px; margin-bottom:0;">
+                    </div>
+                `;
+                itineraryDraft.push({ date: i.travel_date, destId: `dest-${idx}`, purpId: `purp-${idx}`, repId: `rep-${idx}`, cardId: cardId });
+            });
+            
+            await supabaseClient.from('itinerary').delete().eq('to_no', toNo);
+            await supabaseClient.from('travel_orders').delete().eq('to_no', toNo);
+            empSwitchTab('apply-view', document.querySelector('#employee-portal .nav-item'));
+        };
+
+        window.generateOfficialPDF = async function(toNo) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4'); 
+            const getAssetUrl = (fileName) => `${SUPABASE_URL}/storage/v1/object/public/e-sign/${fileName}`;
+
+            try {
+                const { data: group_orders } = await supabaseClient.from('travel_orders').select('*').eq('to_no', toNo);
+                const { data: itin_list } = await supabaseClient.from('itinerary').select('*').eq('to_no', toNo).order('travel_date');
+                const { data: emp_details } = await supabaseClient.from('employees').select('emp_id, full_name, position, station');
+                
+                const od = group_orders[0];
+                const names = group_orders.map(m => m.emp_name.toUpperCase()).join(", ");
+                const positions = [...new Set(group_orders.map(m => emp_details?.find(e => e.emp_id === m.emp_id)?.position || ""))].join(", ").toUpperCase();
+                const stations = [...new Set(group_orders.map(m => emp_details?.find(e => e.emp_id === m.emp_id)?.station || ""))].join(", ").toUpperCase();
+
+                const isMARPO = currentEmp.position && currentEmp.position.toUpperCase().includes("MARPO");
+                const baseDiv = currentEmp.division ? currentEmp.division.split(',')[0].trim() : "";
+
+                let uh_data = null;
+                if (!isMARPO && currentEmp.unit && currentEmp.unit !== "PARPO") {
+                    const resUH = await supabaseClient.from('users').select('full_name, username').eq('unit', currentEmp.unit).maybeSingle();
+                    uh_data = resUH.data;
+                }
+
+                let dc_data = null;
+                if (currentEmp.unit !== "PARPO" && baseDiv) {
+                    const resDC = await supabaseClient.from('users').select('full_name, username').eq('division', baseDiv).eq('role', 'CHIEF').maybeSingle();
+                    dc_data = resDC.data;
+                }
+
+                const [img_bg, img_qr, img_p2, img_uh, img_dc] = await Promise.all([
+                    urlToBase64(getAssetUrl("bg_form.jpg")),
+                    urlToBase64(`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${toNo}`),
+                    urlToBase64(getAssetUrl("P2.png")), 
+                    uh_data ? urlToBase64(getAssetUrl(`${uh_data.username}.png`)) : null,
+                    dc_data ? urlToBase64(getAssetUrl(`${dc_data.username}.png`)) : null
+                ]);
+
+                for (let i = 0; i < 3; i++) {
+                    if (i > 0) doc.addPage();
+                    if (img_bg) try { doc.addImage(img_bg, 'JPEG', 0, 0, 210, 297); } catch(e){} 
+                    if (img_qr) doc.addImage(img_qr, 'PNG', 180, 10, 20, 20); 
+
+                    if (od.transport === "GOV'T VEHICLE") {
+                        doc.setFont("helvetica", "bold"); doc.setFontSize(8);
+                        doc.text("NOT VALID FOR TRANSPORTATION REIMBURSEMENT CLAIM", 105, 48, { align: 'center' });
+                    }
+                    if (od.remarks && od.remarks.includes("EXISTING PSO")) {
+                        doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+                        doc.text("WITH EXISTING PSO/RSO, subject for PARPO's FINAL APPROVAL", 105, 28, { align: 'center' });
+                    }
+
+                    doc.setFont("helvetica", "bold"); doc.setFontSize(14);
+                    doc.text(`TRAVEL ORDER NO. ${toNo}`, 105, 35, { align: 'center' });
+                    const fDate = new Date(od.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+                    doc.text(`Date: ${fDate}`, 105, 42, { align: 'center' });
+
+                    doc.setFontSize(10); 
+                    doc.setFont("helvetica", "bold"); doc.text("NAME:", 20, 48); 
+                    doc.text(names, 40, 48); doc.line(40, 49, 160, 49);
+
+                    doc.setFont("helvetica", "bold"); doc.text("POSITION:", 20, 54);
+                    doc.setFont("helvetica", "normal"); doc.text(positions, 40, 54); doc.line(40, 55, 85, 55);
+                    doc.setFont("helvetica", "bold"); doc.text("STATION:", 90, 54);
+                    doc.setFont("helvetica", "normal"); doc.text(stations, 110, 54); doc.line(110, 55, 160, 55);
+
+                    doc.setFont("helvetica", "bold"); doc.text("MEANS OF TRANSPORTATION:", 20, 61);
+                    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+                    const drawCheck = (label, x, y, isChecked) => {
+                        doc.rect(x, y - 3, 3, 3);
+                        if (isChecked) { doc.setFont("helvetica", "bold"); doc.text("X", x + 0.5, y - 0.2); doc.setFont("helvetica", "normal"); }
+                        doc.text(label, x + 5, y);
+                    };
+                    drawCheck("AIR", 20, 66, od.transport === "AIR");
+                    drawCheck("GOV'T VEHICLE", 70, 66, od.transport === "GOV'T VEHICLE");
+                    drawCheck("LAND", 20, 71, od.transport === "LAND");
+                    drawCheck("OTHERS, PLEASE SPECIFY", 70, 71, od.transport === "OTHERS");
+
+                    doc.setFontSize(10); doc.setFont("helvetica", "bold");
+                    doc.text("DESTINATION:", 20, 78);
+                    const formatDestDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+                    let destY = 78;
+                    itin_list.forEach(it => {
+                        doc.text(`${formatDestDate(it.travel_date)} - ${it.destination}`, 50, destY);
+                        destY += 4.5;
+                    });
+                    
+                    let curY = Math.max(destY, 83);
+
+                    doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+                    doc.text("DEPARTURE DATE:", 20, curY);
+                    doc.setFont("helvetica", "normal"); doc.text(itin_list[0]?.travel_date || "", 55, curY); doc.line(55, curY+1, 90, curY+1);
+                    doc.setFont("helvetica", "bold"); doc.text("RETURN DATE:", 95, curY);
+                    doc.setFont("helvetica", "normal"); doc.text(itin_list[itin_list.length-1]?.travel_date || "", 125, curY); doc.line(125, curY+1, 160, curY+1);
+
+                    curY += 6;
+                    doc.setFont("helvetica", "bold"); doc.text("REPORT TO:", 20, curY);
+                    doc.setFont("helvetica", "normal"); doc.text(od.report_to || "", 50, curY); doc.line(50, curY+1, 160, curY+1);
+                    
+                    curY += 6;
+                    doc.setFont("helvetica", "bold"); doc.text("PURPOSE OF TRAVEL:", 20, curY);
+                    curY += 4;
+                    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+                    const purpLines = doc.splitTextToSize(itin_list[0]?.purpose || "", 140);
+                    doc.text(purpLines, 20, curY); doc.line(20, curY+1, 160, curY+1);
+                    curY += Math.max(5, purpLines.length * 4);
+
+                    doc.setFont("helvetica", "italic"); doc.setFontSize(8);
+                    doc.text("In case of seminar/workshop/consultation/briefing, indicate:", 20, curY);
+                    drawCheck("LIVE IN", 110, curY, false);
+                    drawCheck("LIVE OUT", 135, curY, false);
+
+                    doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+                    doc.text("Recommended by:", 20, 156);
+                    
+                    if (i > 0) {
+                        if(uh_data && !isMARPO) { if(img_uh) doc.addImage(img_uh, 'PNG', 34, 153, 35, 15); doc.text(uh_data.full_name.toUpperCase(), 34, 166); }
+                        if(dc_data) { if(img_dc) doc.addImage(img_dc, 'PNG', 104, 153, 35, 15); doc.text(dc_data.full_name.toUpperCase(), 104, 166); }
+                    } else {
+                        if(uh_data && !isMARPO) { doc.text(uh_data.full_name.toUpperCase(), 34, 166); }
+                        if(dc_data) { doc.text(dc_data.full_name.toUpperCase(), 104, 166); }
+                    }
+
+                    doc.line(25, 168, 80, 168); doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.text(isMARPO ? "" : "UNIT HEAD", 52, 172, {align: 'center'});
+                    doc.line(100, 168, 155, 168); doc.text("DIVISION CHIEF", 127, 172, {align: 'center'});
+
+                    if(i > 0 && img_p2) doc.addImage(img_p2, 'PNG', 122, 187, 20, 20); 
+                    doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+                    doc.text("RICARDO C. GARCIA", 114, 202);
+                    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+                    doc.text("PARPO II", 128, 206);
+                }
+                doc.save(`TO_${toNo}.pdf`);
+            } catch (e) { alert("PDF Error: " + e.message); }
         };
 
         async function loadStatus() {
-            const list = document.getElementById('status-list');
-            list.innerHTML = "Fetching...";
-            const { data: tos } = await supabase.from('travel_orders').select('*').eq('emp_id', currentUser.emp_id).order('to_no', {ascending: false});
-            
+            const list = document.getElementById('status-list'); list.innerHTML = "Fetching...";
+            const { data: tos } = await supabaseClient.from('travel_orders').select('*').eq('emp_id', currentEmp.emp_id).order('created_at', {ascending: false}).limit(30);
             let html = '';
             for(let to of tos || []) {
-                const isApproved = to.status === 'APPROVED';
-                const badgeCls = isApproved ? 'bg-approved' : 'bg-pending';
-                
-                html += `
-                    <div class="card">
-                        <span class="badge ${badgeCls}">${to.status}</span>
-                        <div style="font-weight:bold;">${to.to_no}</div>
-                        <div style="font-size:12px; margin-top:5px;">Transport: ${to.transport}</div>
-                        
-                        ${isApproved ? `
-                            <button class="btn btn-print" onclick="generateOfficialPDF('${to.to_no}')">
-                                🖨️ PRINT OFFICIAL TO (PDF)
-                            </button>
-                        ` : ''}
-                    </div>`;
+                const { data: itin } = await supabaseClient.from('itinerary').select('*').eq('to_no', to.to_no).order('travel_date', {ascending: true});
+                const sCls = to.status.includes('APPROVED') ? 'bg-approved' : (to.status.includes('CANCEL') ? 'bg-cancelled' : 'bg-pending');
+                const isApproved = to.status === 'APPROVED', isPending = to.status.includes('PENDING');
+
+                html += `<div class="emp-card" style="padding: 10px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="font-weight:bold; font-size: 13px;">${to.to_no}</div>
+                        <span class="emp-badge ${sCls}">${to.status.replace(/_/g, ' ')}</span>
+                    </div>
+                    <div style="background: #f9fafb; padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--dar-gold);">
+                        ${itin?.map(i => `<div style="font-size: 10px; border-bottom: 1px solid #eee; padding: 3px 0; line-height: 1.2;"><strong>${i.travel_date}</strong>: ${i.destination} <span style="color: gray; font-style: italic;">(${i.purpose})</span></div>`).join('')}
+                    </div>
+                    <div class="action-group" style="margin-top: 0;">
+                        ${isPending ? `<button class="emp-btn btn-warning btn-small" onclick="modifyPendingTO('${to.to_no}')">Modify</button><button class="emp-btn btn-danger btn-small" onclick="deletePendingTO('${to.to_no}')">Delete</button>` : ''}
+                        ${isApproved ? `<button class="emp-btn btn-success btn-small" onclick="generateOfficialPDF('${to.to_no}')">Print</button><button class="emp-btn btn-danger btn-small" onclick="cancelApprovedTO('${to.to_no}')">Cancel</button>` : ''}
+                    </div>
+                </div>`;
             }
-            list.innerHTML = html || "No records.";
+            list.innerHTML = html || "No records found.";
         }
 
-        // OFFICIAL PDF MAPPING LOGIC
-        window.generateOfficialPDF = async function(toNo) {
-            const { data: toData } = await supabase.from('travel_orders').select('*').eq('to_no', toNo);
-            const { data: itinData } = await supabase.from('itinerary').select('*').eq('to_no', toNo).order('travel_date');
-            
-            if(!toData || toData.length === 0) return alert("Error fetching TO data.");
+        window.changeCalMonth = (d) => { calDate.setMonth(calDate.getMonth()+d); renderCalendar(); };
+        async function renderCalendar() {
+            document.getElementById('cal-month-year').innerText = calDate.toLocaleString('default',{month:'long',year:'numeric'});
+            const month = calDate.getMonth(), year = calDate.getFullYear();
+            const tbody = document.getElementById('cal-table-body');
+            tbody.innerHTML = "<tr><td colspan='2'>Loading...</td></tr>";
 
-            const pdf = new jsPDF();
-            const copies = ["ORIGINAL", "DUPLICATE", "TRIPLICATE"];
-            
-            // Collect all names for group TO
-            const names = toData.map(t => t.emp_name.toUpperCase()).join(", ");
-            const mainTO = toData[0];
+            const { data: tos } = await supabaseClient.from('travel_orders').select('to_no').eq('emp_id', currentEmp.emp_id).eq('status', 'APPROVED');
+            const { data: itins } = await supabaseClient.from('itinerary').select('to_no, travel_date, destination, purpose').in('to_no', tos?.map(t => t.to_no) || []);
+            const { data: psos } = await supabaseClient.from('pso_records').select('*').eq('emp_id', currentEmp.emp_id);
+            const { data: holidays } = await supabaseClient.from('holidays').select('*');
 
-            copies.forEach((label, index) => {
-                if (index > 0) pdf.addPage();
+            tbody.innerHTML = "";
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            for(let d=1; d<=daysInMonth; d++) {
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const dateObj = new Date(year, month, d), isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                const dayItins = itins?.filter(i => i.travel_date === dateStr), dayPsos = psos?.filter(p => dateStr >= p.start_date && dateStr <= p.end_date), holiday = holidays?.find(h => h.date === dateStr);
 
-                // 1. Header Logic
-                pdf.setFontSize(7);
-                pdf.text(label, 180, 10);
-                pdf.setFont("helvetica", "bold");
-                pdf.setFontSize(16);
-                pdf.text(`TRAVEL ORDER NO. ${toNo}`, 105, 40, { align: "center" });
+                let activityHtml = "";
+                if(holiday) activityHtml += `<div class="cal-entry entry-holiday">HOLIDAY: ${holiday.description || holiday.type || 'Holiday'}</div>`;
+                if(dayPsos?.length) dayPsos.forEach(p => activityHtml += `<div class="cal-entry entry-pso">PSO ${p.pso_no || ''}: ${p.subject || 'Duty'}</div>`);
+                if(dayItins?.length) dayItins.forEach(i => activityHtml += `<div class="cal-entry entry-to">TO: ${i.to_no} - ${i.destination}</div>`);
 
-                // 2. Official Warnings
-                pdf.setFontSize(9);
-                pdf.setTextColor(192, 0, 0); // Red
-                if(mainTO.remarks === "PSO_OVERRIDE") pdf.text("WITH EXISTING PSO/TO, SUBJECT FOR PARPO'S APPROVAL", 105, 48, { align: "center" });
-                if(mainTO.transport === "GOV'T VEHICLE") pdf.text("NOT VALID FOR TRANSPORTATION REIMBURSEMENT CLAIM", 105, 52, { align: "center" });
-                pdf.setTextColor(0,0,0);
+                let rowStyle = dateStr === todayStr ? 'background:#fffbeb; border-left: 3px solid var(--dar-gold);' : (isWeekend ? 'background:#f9fafb;' : '');
+                tbody.innerHTML += `<tr style="${rowStyle}"><td><span class="day-num">${d}</span> <br> <span style="color:gray;">${dateObj.toLocaleDateString('en-US', { weekday: 'short' })}</span></td><td>${activityHtml || '<span style="color:#ccc;">--</span>'}</td></tr>`;
+            }
+        }
 
-                // 3. Personnel Details Mapping
-                pdf.setFontSize(11);
-                pdf.text("NAME:", 15, 65);
-                pdf.setFont("helvetica", "normal");
-                pdf.text(names, 45, 65);
-                pdf.line(45, 66, 195, 66);
-
-                pdf.setFont("helvetica", "bold");
-                pdf.text("POSITION:", 15, 75);
-                pdf.setFont("helvetica", "normal");
-                pdf.text(currentUser.position.toUpperCase(), 45, 75);
-                pdf.line(45, 76, 100, 76);
-
-                pdf.setFont("helvetica", "bold");
-                pdf.text("STATION:", 110, 75);
-                pdf.setFont("helvetica", "normal");
-                pdf.text(currentUser.station ? currentUser.station.toUpperCase() : "DARPO CS I", 135, 75);
-                pdf.line(135, 76, 195, 76);
-
-                // 4. Itinerary Mapping
-                pdf.setFont("helvetica", "bold");
-                pdf.text("DESTINATION:", 15, 95);
-                const destStr = itinData.map(i => `${i.destination} (${i.travel_date})`).join(", ");
-                pdf.setFont("helvetica", "normal");
-                pdf.setFontSize(9);
-                pdf.text(destStr, 45, 95, { maxWidth: 150 });
-
-                // 5. Signatory Mapping
-                const sigY = 160;
-                pdf.setFontSize(10);
-                pdf.text("Recommended by:", 15, sigY);
-                
-                pdf.setFont("helvetica", "bold");
-                pdf.text("GERRY L. MATAMOROSA", 45, sigY + 15, { align: "center" });
-                pdf.line(15, sigY + 16, 75, sigY + 16);
-                pdf.setFont("helvetica", "normal");
-                pdf.text("Division Chief", 45, sigY + 20, { align: "center" });
-
-                pdf.setFont("helvetica", "bold");
-                pdf.text("RICARDO C. GARCIA", 150, sigY + 15, { align: "center" });
-                pdf.line(120, sigY + 16, 185, sigY + 16);
-                pdf.setFont("helvetica", "normal");
-                pdf.text("PARPO II", 150, sigY + 20, { align: "center" });
-            });
-
-            pdf.save(`TO_${toNo}.pdf`);
+        window.empChangePassword = async function() {
+            const curr = document.getElementById('emp-pass-curr').value, nw = document.getElementById('emp-pass-new').value;
+            if(curr !== currentEmp.pass) return alert("Wrong current password.");
+            await supabaseClient.from('employees').update({ pass: nw }).eq('emp_id', currentEmp.emp_id);
+            alert("Updated."); location.reload();
         };
+
+        // ==========================================
+        // ADMIN PORTAL LOGIC (File 2)
+        // ==========================================
+        let currentAdmin = null;
+        let currentAdminTab = 'pending'; 
+        let reportFilter = 'month'; 
+        let reportData = [];
+
+        function adminRender() { 
+            if (!currentAdmin) adminRenderLogin(); 
+            else adminRenderMain(); 
+        }
+
+        function adminRenderLogin() {
+            document.getElementById('admin-app').innerHTML = `
+                <div class="flex-grow flex flex-col justify-center items-center px-6 dar-green h-full relative">
+                    <button onclick="backToMaster()" class="absolute top-10 left-6 text-white font-bold text-sm">← Back</button>
+                    <div class="z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+                        <div class="dar-gold h-2 w-full"></div>
+                        <div class="p-8">
+                            <h1 class="text-dar-green font-bold text-3xl font-serif mb-1 text-center">DAR CONSOLE</h1>
+                            <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase text-center">ADMINISTRATOR</p>
+                            <div class="space-y-4">
+                                <div><label class="block text-xs font-bold text-gray-700 mb-1">USERNAME</label><input type="text" id="admin-username" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
+                                <div><label class="block text-xs font-bold text-gray-700 mb-1">PASSWORD</label><input type="password" id="admin-password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
+                                <p id="admin-loginError" class="text-red-600 text-[10px] font-bold text-center hidden"></p>
+                                <button onclick="handleAdminLogin()" class="w-full mt-2 dar-green text-white font-bold py-3.5 rounded-xl shadow-lg">LOG IN</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('admin-password').addEventListener('keypress', e => { if (e.key === 'Enter') handleAdminLogin(); });
+        }
+
+        async function handleAdminLogin() {
+            const uBox = document.getElementById('admin-username').value.trim();
+            const pBox = document.getElementById('admin-password').value.trim();
+            const err = document.getElementById('admin-loginError');
+            try {
+                const { data: users } = await supabaseClient.from('users').select('*');
+                const u = (users || []).find(x => x.username === uBox && x.password === pBox);
+                if (u) {
+                    currentAdmin = { username: u.username, fullName: u.full_name, role: u.role.toUpperCase(), divisions: u.division ? u.division.split(',').map(d => d.trim().toUpperCase()) : [], unit: u.unit ? u.unit.trim().toUpperCase() : '' };
+                    adminRender();
+                } else { err.innerText = "Check credentials."; err.classList.remove("hidden"); }
+            } catch (e) { err.innerText = "Error."; err.classList.remove("hidden"); }
+        }
+
+        function adminLogout() { 
+            currentAdmin = null; 
+            adminRender(); 
+            backToMaster();
+        }
+
+        function adminRenderMain() {
+            document.getElementById('admin-app').innerHTML = `
+                <header class="flex-none w-full h-16 dar-green text-white px-5 flex justify-between items-center shadow-md z-50">
+                    <div class="overflow-hidden text-left"><h1 class="font-bold text-lg leading-tight truncate">${currentAdmin.fullName}</h1><p class="text-[10px] text-dar-gold tracking-wide font-bold uppercase">${currentAdmin.role}</p></div>
+                    <div class="flex items-center space-x-2"><button onclick="showAdminChangePassword()" class="text-xl px-2">🔒</button><button onclick="adminLogout()" class="text-xs bg-white/20 px-3 py-1.5 rounded-full font-bold">Logout</button></div>
+                </header>
+                <main id="admin-mainContent" class="flex-grow w-full overflow-y-auto bg-gray-100 relative z-10 scroll-smooth"></main>
+                <nav class="flex-none w-full h-16 bg-white border-t flex z-50 pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                    <button onclick="adminSwitchTab('pending')" class="flex flex-col items-center justify-center w-1/4 ${currentAdminTab === 'pending' ? 'text-dar-green font-bold' : 'text-gray-400'}"><span class="text-xl">📥</span><span class="text-[9px] uppercase tracking-tighter">Pending</span></button>
+                    <button onclick="adminSwitchTab('approved')" class="flex flex-col items-center justify-center w-1/4 ${currentAdminTab === 'approved' ? 'text-dar-green font-bold' : 'text-gray-400'}"><span class="text-xl">✅</span><span class="text-[9px] uppercase tracking-tighter">Approved</span></button>
+                    <button onclick="adminSwitchTab('denied')" class="flex flex-col items-center justify-center w-1/4 ${currentAdminTab === 'denied' ? 'text-red-600 font-bold' : 'text-gray-400'}"><span class="text-xl">❌</span><span class="text-[9px] uppercase tracking-tighter">Denied</span></button>
+                    <button onclick="adminSwitchTab('reports')" class="flex flex-col items-center justify-center w-1/4 ${currentAdminTab === 'reports' ? 'text-blue-600 font-bold' : 'text-gray-400'}"><span class="text-xl">📊</span><span class="text-[9px] uppercase tracking-tighter">Reports</span></button>
+                </nav>
+                <div id="admin-pwdModal" class="hidden absolute inset-0 bg-black/50 z-[60] flex items-center justify-center px-4 modal-fade"><div class="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"><div class="dar-green text-white p-4 font-bold text-center relative">Security<button onclick="hideAdminChangePassword()" class="absolute right-4 text-xl leading-none">✕</button></div><div class="p-6 space-y-4"><input type="password" id="admin-oldPwd" placeholder="Current Password" class="w-full px-4 py-2 border rounded-lg text-sm"><input type="password" id="admin-newPwd" placeholder="New Password" class="w-full px-4 py-2 border rounded-lg text-sm"><button onclick="adminUpdatePassword()" class="w-full dar-green text-white font-bold py-3 rounded-xl">Save</button></div></div></div>`;
+            if (currentAdminTab === 'pending') loadPendingTab();
+            else if (currentAdminTab === 'approved') loadStatusTab('APPROVED');
+            else if (currentAdminTab === 'denied') loadStatusTab('DISAPPROVED');
+            else loadReportsTab();
+        }
+
+        function adminSwitchTab(tab) { currentAdminTab = tab; adminRenderMain(); }
+        function showAdminChangePassword() { document.getElementById('admin-pwdModal').classList.remove('hidden'); }
+        function hideAdminChangePassword() { document.getElementById('admin-pwdModal').classList.add('hidden'); }
+
+        async function adminUpdatePassword() {
+            const o = document.getElementById('admin-oldPwd').value.trim();
+            const n = document.getElementById('admin-newPwd').value.trim();
+            const { data } = await supabaseClient.from('users').select('password').eq('username', currentAdmin.username).single();
+            if (data.password !== o) return alert("Incorrect.");
+            await supabaseClient.from('users').update({ password: n }).eq('username', currentAdmin.username);
+            alert("Updated!"); hideAdminChangePassword();
+        }
+
+        const checkScope = (div, unit) => {
+            const role = currentAdmin.role;
+            if (role === "PARPO" || role === "VEHICLE_APPROVER") return true;
+            const dMatch = div && currentAdmin.divisions.includes(div.toUpperCase());
+            if (role === "CHIEF") return dMatch;
+            const uMatch = unit && unit.toUpperCase() === currentAdmin.unit;
+            return dMatch && uMatch;
+        };
+
+        async function loadPendingTab() {
+            const content = document.getElementById('admin-mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full text-gray-400 font-bold animate-pulse">Syncing Inbox...</p>`;
+            const [oRes, iRes] = await Promise.all([supabaseClient.from('travel_orders').select('*'), supabaseClient.from('itinerary').select('*')]);
+            let grp = {};
+            (oRes.data || []).forEach(o => { if (!grp[o.to_no]) grp[o.to_no] = []; grp[o.to_no].push(o); });
+            let pendingOrders = [];
+            for (const [to_no, list] of Object.entries(grp)) {
+                const o = list[0];
+                const s = (o.status || "").toUpperCase();
+                let show = false;
+                if (currentAdmin.role === "VEHICLE_APPROVER" && s === "PENDING_VEHICLE_RESERVATION") show = true;
+                else if (currentAdmin.role === "PARPO" && s === "PENDING_PARPO") show = true;
+                else if (currentAdmin.role === "CHIEF" && s === "PENDING_CHIEF" && currentAdmin.divisions.includes(o.division?.toUpperCase())) show = true;
+                else if ((currentAdmin.role === "UNIT_HEAD" || currentAdmin.role === "MARPO") && s === "PENDING_UNIT_HEAD" && currentAdmin.divisions.includes(o.division?.toUpperCase()) && currentAdmin.unit === o.unit?.toUpperCase()) show = true;
+                
+                if (show) {
+                    let d = (iRes.data || []).filter(i => i.to_no === to_no);
+                    pendingOrders.push({ to_no, names: list.map(g => g.emp_name), destinations: d.map(i => i.destination).join(', ') || 'N/A' });
+                }
+            }
+            if (pendingOrders.length === 0) content.innerHTML = `<div class="flex flex-col items-center justify-center h-full opacity-50"><span class="text-4xl">✨</span><p class="font-bold mt-2 text-xs uppercase">Inbox Clear</p></div>`;
+            else {
+                let h = `<div class="p-4 space-y-4 pb-32">`;
+                pendingOrders.forEach(o => { h += `<div class="bg-white p-4 rounded-2xl shadow-sm border"><span class="text-[10px] font-black text-gray-300 uppercase">${o.to_no}</span><p class="font-bold text-gray-800">${o.names.join(', ')}</p><p class="text-xs text-gray-500 truncate">📍 ${o.destinations}</p><div class="flex justify-end space-x-2 mt-4"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Deny</button><button onclick="processSingle('${o.to_no}', 'APPROVE')" class="px-5 py-2 dar-green text-white rounded-xl text-[11px] font-bold">Approve</button></div></div>`; });
+                content.innerHTML = h + `</div>`;
+            }
+        }
+
+        async function processSingle(to_no, action) {
+            let p = action === 'DISAPPROVED' ? { status: "DISAPPROVED", received: prompt("Reason:") } : getAppPayload(currentAdmin);
+            if(p.status === "DISAPPROVED" && !p.received) return;
+            await supabaseClient.from('travel_orders').update(p).eq('to_no', to_no);
+            loadPendingTab();
+        }
+
+        function getAppPayload(u) {
+            if (u.role === "UNIT_HEAD" || u.role === "MARPO") return { status: "PENDING_CHIEF", unithead_signed: u.fullName };
+            if (u.role === "CHIEF") return { status: "PENDING_PARPO", dc_signed: u.fullName };
+            if (u.role === "PARPO") return { status: "APPROVED", parpo_signed: "RICARDO C. GARCIA" };
+            return {};
+        }
+
+        async function loadStatusTab(status) {
+            const content = document.getElementById('admin-mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full font-bold animate-pulse text-gray-400">Loading...</p>`;
+            const [oRes, iRes] = await Promise.all([supabaseClient.from('travel_orders').select('*').eq('status', status), supabaseClient.from('itinerary').select('*')]);
+            let h = `<div class="p-4 space-y-3">`;
+            (oRes.data || []).forEach(o => {
+                if (checkScope(o.division, o.unit)) {
+                    const myI = (iRes.data || []).filter(i => i.to_no === o.to_no).sort((a,b) => new Date(a.travel_date) - new Date(b.travel_date));
+                    const ds = [...new Set(myI.map(i => i.destination))].join(', ') || 'N/A';
+                    let dt = "N/A";
+                    if(myI.length > 0) {
+                        const start = new Date(myI[0].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        const end = new Date(myI[myI.length-1].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        dt = myI.length === 1 ? end : `${start} - ${end}`;
+                    }
+                    h += `<div class="bg-white p-4 rounded-xl border-l-4 ${status === 'APPROVED' ? 'border-[#003811]' : 'border-red-500'}"><div class="flex justify-between mb-1"><span class="text-[9px] font-black uppercase text-gray-400">${status}</span><span class="text-[9px] text-gray-400">${o.to_no}</span></div><p class="font-bold text-gray-800 text-base">${o.emp_name}</p><p class="text-[11px] text-gray-500 mt-1">📍 ${ds}</p><p class="text-[11px] text-[#003811] font-bold">📅 ${dt}</p></div>`;
+                }
+            });
+            content.innerHTML = h + `</div>`;
+        }
+
+        async function loadReportsTab() {
+            const content = document.getElementById('admin-mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full text-blue-500 font-bold animate-pulse">Building Activity Dashboard...</p>`;
+            try {
+                const [toR, itR, psR, soR, hoR] = await Promise.all([
+                    supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED'),
+                    supabaseClient.from('itinerary').select('*'),
+                    supabaseClient.from('pso_records').select('*'),
+                    supabaseClient.from('so_records').select('*'),
+                    supabaseClient.from('holidays').select('*')
+                ]);
+                reportData = [];
+                let seen = new Set();
+                (itR.data || []).forEach(i => {
+                    const p = (toR.data || []).find(x => x.to_no === i.to_no);
+                    if(p && i.travel_date && checkScope(p.division, p.unit)) {
+                        const key = `${p.emp_name}-${i.travel_date}`;
+                        if (!seen.has(key)) { reportData.push({ type: 'TO', date: new Date(i.travel_date), title: p.emp_name, subtitle: i.destination, color: 'blue' }); seen.add(key); }
+                    }
+                });
+                (psR.data || []).forEach(p => { if(p.date && checkScope(p.division, p.unit)) reportData.push({ type: 'PSO', date: new Date(p.date), title: p.emp_name || 'Personnel', subtitle: p.destination || 'Field Work', color: 'purple' }); });
+                (soR.data || []).forEach(s => { if(s.date && checkScope(s.division, s.unit)) reportData.push({ type: 'SO', date: new Date(s.date), title: s.emp_name || 'Personnel', subtitle: s.destination || 'Special Assignment', color: 'orange' }); });
+                (hoR.data || []).forEach(h => { if(h.date) {
+                    const name = h.name || h.holiday || h.description || "Holiday";
+                    reportData.push({ type: 'HOLIDAY', date: new Date(h.date), title: name, subtitle: 'National/Local Holiday', color: 'red' }); 
+                }});
+                renderReportsShell();
+            } catch (e) { content.innerHTML = `<p class="p-10 text-red-500">Error.</p>`; }
+        }
+
+        function renderReportsShell() {
+            document.getElementById('admin-mainContent').innerHTML = `
+                <div class="sticky top-0 bg-gray-100 z-20 pt-4 px-4 pb-2 border-b shadow-sm">
+                    <h2 class="font-bold text-lg text-blue-900 mb-3 text-center tracking-tighter uppercase">Activity Analytics</h2>
+                    <div class="flex bg-gray-200 rounded-xl p-1 mb-3">
+                        <button id="btn-day" onclick="setReportFilter('day')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'day' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Today</button>
+                        <button id="btn-week" onclick="setReportFilter('week')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'week' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Week</button>
+                        <button id="btn-month" onclick="setReportFilter('month')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Month</button>
+                    </div>
+                </div>
+                <div id="reportListContainer" class="p-4 space-y-4 pb-20"></div>`;
+            updateReportList();
+        }
+
+        function setReportFilter(v) { reportFilter = v; renderReportsShell(); }
+
+        function updateReportList() {
+            const container = document.getElementById('reportListContainer');
+            const now = new Date(); now.setHours(0,0,0,0);
+            let f = reportData.filter(r => {
+                const d = new Date(r.date); d.setHours(0,0,0,0);
+                if (reportFilter === 'day') return d.getTime() === now.getTime();
+                if (reportFilter === 'week') { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); const e = new Date(s); e.setDate(s.getDate() + 6); return d >= s && d <= e; }
+                if (reportFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                return true;
+            });
+            if (reportFilter === 'month') f.sort((a, b) => a.date - b.date);
+            else f.sort((a, b) => b.date - a.date);
+            
+            if (f.length === 0) { container.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold text-[10px] tracking-widest uppercase">No Records Found</p>`; return; }
+            let h = '', last = '';
+            f.forEach(r => {
+                const cur = r.date.toDateString();
+                if (cur !== last) {
+                    last = cur;
+                    h += `<h3 class="text-[10px] font-black text-gray-400 mt-6 mb-2 tracking-widest text-left border-b pb-1 uppercase">${r.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</h3>`;
+                }
+                const cMap = { blue: 'border-blue-500 bg-blue-50 text-blue-800', purple: 'border-purple-500 bg-purple-50 text-purple-800', orange: 'border-orange-500 bg-orange-50 text-orange-800', red: 'border-red-500 bg-red-50 text-red-800' };
+                const c = cMap[r.color];
+                h += `<div class="bg-white p-4 rounded-2xl border-l-4 shadow-sm flex items-center justify-between text-left ${c.split(' ')[0]}"><div class="overflow-hidden"><p class="font-bold text-sm text-gray-800 truncate">${r.title}</p><p class="text-[10px] text-gray-500 truncate mt-1">📍 ${r.subtitle || 'N/A'}</p></div><div class="shrink-0 ml-2"><span class="text-[8px] font-black px-2 py-1 rounded-md uppercase ${c.split(' ').slice(1).join(' ')}">${r.type}</span></div></div>`;
+            });
+            container.innerHTML = h;
+        }
     </script>
 </body>
 </html>
