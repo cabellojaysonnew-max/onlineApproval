@@ -1,474 +1,299 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DAR CS I - Unified Command Portal</title>
+    <title>DAR Console</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="DAR Console">
     <meta name="theme-color" content="#003811">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <link id="pwa-manifest" rel="manifest">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <style>
-        :root { --dar-green: #003811; --dar-gold: #D4AF37; --dar-light: #006400; --danger: #dc2626; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
-        .bg-dar { background-color: var(--dar-green); } .text-dar { color: var(--dar-green); } .bg-gold { background-color: var(--dar-gold); }
-        .btn-primary { background-color: var(--dar-green); color: white; border-radius: 0.75rem; font-weight: bold; text-transform: uppercase; transition: 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
-        .btn-gold { background: var(--dar-gold); color: var(--dar-green); border-radius: 0.75rem; font-weight: bold; text-transform: uppercase; }
-        ::-webkit-scrollbar { display: none; }
-        .modal-fade { animation: fadeIn 0.2s ease-in-out; } @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .search-results-box { position: absolute; width: 100%; max-height: 200px; overflow-y: auto; z-index: 2000; background: white; border: 2px solid var(--dar-gold); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); top: 100%; left: 0; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .dar-green { background-color: #003811; }
+        .text-dar-green { color: #003811; }
+        .dar-gold { background-color: #D4AF37; }
+        .text-dar-gold { color: #D4AF37; }
         
-        /* Specific components from sub-systems */
-        .cal-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        .cal-table td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
-        .cal-entry { margin-bottom: 4px; padding: 4px; border-radius: 4px; color: white; font-weight: bold; font-size: 10px; }
-        .entry-to { background: var(--dar-green); } .entry-pso { background: var(--dar-gold); color: #003811; } .entry-holiday { background: var(--danger); }
-        .qr-maximized { position: fixed !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; width: 85vw !important; height: 85vw !important; z-index: 9999 !important; box-shadow: 0 0 0 2000px rgba(0,0,0,0.85) !important; background: white !important; border: 4px solid var(--dar-gold) !important; }
-
-        @media print { .no-print { display: none !important; } }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #f3f4f6; 
+            -webkit-tap-highlight-color: transparent; 
+            overscroll-behavior-y: none; 
+        }
+        
+        ::-webkit-scrollbar { display: none; }
+        .modal-fade { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .batch-bar-position { bottom: calc(4rem + env(safe-area-inset-bottom)); }
     </style>
 </head>
-<body class="h-[100dvh] w-full flex flex-col overflow-hidden text-gray-800 relative">
+<body class="h-[100dvh] w-full flex flex-col overflow-hidden text-gray-800 bg-gray-100 text-left">
 
-    <div id="master-landing" class="h-full w-full flex flex-col justify-center items-center bg-[#f4f7f6] p-6 z-[100] absolute inset-0">
-        <div class="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm border-t-8 border-[#D4AF37] text-center">
-            <h1 class="text-4xl font-black text-[#003811] mb-1">DAR</h1>
-            <p class="text-[10px] text-gray-500 mb-8 font-bold tracking-widest uppercase">Camarines Sur I - Unified Portal</p>
-            <button onclick="showPortal('employee')" class="w-full mb-4 py-4 bg-[#003811] text-white rounded-xl font-bold text-lg shadow-md transition active:scale-95">👤 EMPLOYEE PORTAL</button>
-            <button onclick="showPortal('console')" class="w-full py-4 bg-[#D4AF37] text-[#003811] rounded-xl font-bold text-lg shadow-md transition active:scale-95">⚙️ SYSTEM CONSOLE</button>
-        </div>
-    </div>
-
-    <div id="login-container" class="hidden h-full w-full flex flex-col justify-center items-center px-6 bg-dar z-[90] absolute inset-0">
-        <button onclick="backToMaster()" class="absolute top-10 left-6 text-white font-bold text-sm">← Back</button>
-        <div class="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div class="bg-gold h-2 w-full"></div>
-            <div class="p-8" id="login-form-content">
-                </div>
-        </div>
-    </div>
-
-    <div id="app" class="hidden w-full h-full flex flex-col relative overflow-hidden">
-        </div>
-
-    <div id="modal-layer" class="z-[200]"></div>
-    <div id="print-table-section" class="hidden w-full bg-white z-[9999] absolute inset-0"></div>
+    <div id="app" class="w-full h-full flex flex-col relative"></div>
 
     <script>
-        const SB_URL = "https://ytfpiyfapvybihlngxks.supabase.co";
-        const SB_KEY = "sb_publishable_poSZUQ9HI4wcY9poEo5b1w_Z-pAJbKo"; 
-        const db = window.supabase.createClient(SB_URL, SB_KEY);
+        const manifestData = {
+            "name": "DAR Cam Sur 1 Console",
+            "short_name": "DAR Console",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#F3F4F6",
+            "theme_color": "#003811",
+            "icons": [{
+                "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzAwMzgxMSIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iI0Q0QUYzNyI+RDwvdGV4dD48L3N2Zz4=",
+                "sizes": "192x192",
+                "type": "image/svg+xml"
+            }]
+        };
+        document.getElementById('pwa-manifest').setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestData)));
 
-        let currentUser = null; // Can be Employee data or User data
-        let userRole = null; // 'EMPLOYEE', 'ACCOUNTANT', 'VEHICLE_APPROVER', 'ADMIN', 'CHIEF', 'PARPO'
-        let currentSystem = null; // 'accounting', 'fleet', 'employee', 'admin'
-        
-        // --- GLOBAL NAVIGATION ---
-        function showPortal(type) {
-            document.getElementById('master-landing').classList.add('hidden');
-            document.getElementById('login-container').classList.remove('hidden');
-            const loginBox = document.getElementById('login-form-content');
-            
-            if (type === 'employee') {
-                loginBox.innerHTML = `
-                    <h2 class="text-dar font-black text-2xl text-center mb-1">EMPLOYEE LOGIN</h2>
-                    <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase text-center">Camarines Sur I</p>
-                    <div class="space-y-4">
-                        <input type="text" id="log-id" placeholder="Employee ID Number" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-dar">
-                        <input type="password" id="log-pass" placeholder="Portal Password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-dar">
-                        <button onclick="handleLogin('EMPLOYEE')" class="w-full mt-2 btn-primary py-3.5">Enter Portal</button>
-                    </div>`;
-            } else {
-                loginBox.innerHTML = `
-                    <h2 class="text-dar font-black text-2xl text-center mb-1">SYSTEM CONSOLE</h2>
-                    <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase text-center">Official Access</p>
-                    <div class="space-y-4">
-                        <input type="text" id="log-id" placeholder="Username" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-dar">
-                        <input type="password" id="log-pass" placeholder="Password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-dar">
-                        <button onclick="handleLogin('CONSOLE')" class="w-full mt-2 btn-primary py-3.5">Identify & Enter</button>
-                    </div>`;
-            }
-        }
+        // --- SUPABASE CONFIG ---
+        const SUPABASE_URL = "https://ytfpiyfapvybihlngxks.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0ZnBpeWZhcHZ5YmlobG5neGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMDA2MTIsImV4cCI6MjA4NTY3NjYxMn0.7TRVjvFjxVtxkP_hL3wnlxPT6FXJd0y7aKHNzDHThAQ";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        function backToMaster() {
-            document.getElementById('login-container').classList.add('hidden');
-            document.getElementById('master-landing').classList.remove('hidden');
-        }
+        let currentUser = null;
+        let currentTab = 'pending'; 
+        let reportFilter = 'month'; 
+        let reportData = [];
 
-        async function handleLogin(portalType) {
-            const id = document.getElementById('log-id').value.trim();
-            const pass = document.getElementById('log-pass').value.trim();
+        function render() { if (!currentUser) renderLogin(); else renderMain(); }
 
-            if (portalType === 'EMPLOYEE') {
-                const { data } = await db.from('employees').select('*').eq('emp_id', id).single();
-                if (data && data.pass === pass) {
-                    currentUser = data; userRole = 'EMPLOYEE'; currentSystem = 'employee';
-                    launchSystem();
-                } else alert("Invalid Employee Credentials");
-            } else {
-                const { data } = await db.from('users').select('*').eq('username', id).eq('password', pass).single();
-                if (data) {
-                    currentUser = data; userRole = data.role.toUpperCase();
-                    if (userRole === 'ACCOUNTANT') currentSystem = 'accounting';
-                    else if (userRole === 'VEHICLE_APPROVER') currentSystem = 'fleet';
-                    else currentSystem = 'admin';
-                    launchSystem();
-                } else alert("Invalid Console Credentials");
-            }
-        }
-
-        function launchSystem() {
-            document.getElementById('login-container').classList.add('hidden');
-            document.getElementById('app').classList.remove('hidden');
-            
-            if (currentSystem === 'employee') initEmployeePortal();
-            else if (currentSystem === 'accounting') initAccountingVerifier();
-            else if (currentSystem === 'fleet') initFleetMaster();
-            else initAdminConsole();
-        }
-
-        function logout() { location.reload(); }
-
-        // ==========================================
-        // SYSTEM 1: ACCOUNTING VERIFIER (Intelligent Overlap Audit)
-        // ==========================================
-        let accEmps = [], accSelected = null;
-        function initAccountingVerifier() {
-            renderAccHeader();
-            renderAccHome();
-            loadAccEmps();
-        }
-        function renderAccHeader() {
+        function renderLogin() {
             document.getElementById('app').innerHTML = `
-            <header class="flex-none w-full h-16 bg-dar text-white px-5 flex justify-between items-center shadow-md z-50">
-                <div class="text-left"><h1 class="font-bold text-lg">Accounting Audit</h1><p class="text-[10px] text-dar-gold font-bold uppercase">${currentUser.full_name}</p></div>
-                <div class="flex gap-2">
-                    <button onclick="showChangePwd()" class="text-[10px] bg-white/20 px-3 py-1.5 rounded-full font-bold uppercase">Pass</button>
-                    <button onclick="logout()" class="text-[10px] bg-white/20 px-3 py-1.5 rounded-full font-bold uppercase">Logout</button>
-                </div>
-            </header>
-            <main id="acc-content" class="flex-grow w-full overflow-y-auto p-4 md:p-8 pb-32"></main>`;
-        }
-        async function loadAccEmps() { const {data} = await db.from('employees').select('*'); accEmps = data || []; }
-        function renderAccHome() {
-            document.getElementById('acc-content').innerHTML = `
-            <div class="max-w-2xl mx-auto space-y-6">
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="space-y-4">
-                        <div class="relative">
-                            <label class="text-[10px] font-black text-dar uppercase mb-1 block">Employee Search</label>
-                            <input id="accSearch" oninput="runAccSearch(this)" placeholder="Search name..." class="w-full p-3 border rounded-xl text-sm outline-none bg-slate-50 uppercase font-bold">
-                            <div id="accResults" class="search-results-box hidden"></div>
+                <div class="flex-grow flex flex-col justify-center items-center px-6 dar-green h-full">
+                    <div class="z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+                        <div class="dar-gold h-2 w-full"></div>
+                        <div class="p-8">
+                            <h1 class="text-dar-green font-bold text-3xl font-serif mb-1 text-center">DAR</h1>
+                            <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase text-center">Cam Sur 1 Console</p>
+                            <div class="space-y-4">
+                                <div><label class="block text-xs font-bold text-gray-700 mb-1">USERNAME</label><input type="text" id="username" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
+                                <div><label class="block text-xs font-bold text-gray-700 mb-1">PASSWORD</label><input type="password" id="password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
+                                <p id="loginError" class="text-red-600 text-[10px] font-bold text-center hidden"></p>
+                                <button onclick="handleLogin()" id="loginBtn" class="w-full mt-2 dar-green text-white font-bold py-3.5 rounded-xl shadow-lg">LOG IN</button>
+                            </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label class="text-[10px] font-black text-dar uppercase mb-1 block">From</label><input id="accD1" type="date" class="w-full p-3 border rounded-xl text-sm bg-slate-50"></div>
-                            <div><label class="text-[10px] font-black text-dar uppercase mb-1 block">To</label><input id="accD2" type="date" class="w-full p-3 border rounded-xl text-sm bg-slate-50"></div>
-                        </div>
-                        <button onclick="runAccAudit()" class="w-full btn-primary text-xs py-4 tracking-widest">🔍 Start Intelligence Audit</button>
                     </div>
-                </div>
-                <div id="accResultsArea" class="hidden space-y-4"></div>
-            </div>`;
+                </div>`;
+            document.getElementById('password').addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
         }
-        function runAccSearch(inp) {
-            const div = document.getElementById('accResults');
-            const val = inp.value.toLowerCase().trim();
-            if (val.length < 2) { div.classList.add('hidden'); return; }
-            const match = accEmps.filter(e => e.full_name.toLowerCase().includes(val)).slice(0, 5);
-            div.innerHTML = match.map(e => `<div onclick="pickAccEmp('${e.full_name.replace(/'/g,"")}', '${e.emp_id}')" class="p-4 border-b text-[11px] font-black cursor-pointer uppercase hover:bg-slate-50">${e.full_name}</div>`).join('');
-            div.classList.remove('hidden');
+
+        async function handleLogin() {
+            const uBox = document.getElementById('username').value.trim();
+            const pBox = document.getElementById('password').value.trim();
+            const err = document.getElementById('loginError');
+            try {
+                const { data: users } = await supabaseClient.from('users').select('*');
+                const u = (users || []).find(x => x.username === uBox && x.password === pBox);
+                if (u) {
+                    currentUser = { username: u.username, fullName: u.full_name, role: u.role.toUpperCase(), divisions: u.division ? u.division.split(',').map(d => d.trim().toUpperCase()) : [], unit: u.unit ? u.unit.trim().toUpperCase() : '' };
+                    render();
+                } else { err.innerText = "Check credentials."; err.classList.remove("hidden"); }
+            } catch (e) { err.innerText = "Error."; err.classList.remove("hidden"); }
         }
-        function pickAccEmp(n, id) { 
-            document.getElementById('accSearch').value = n; 
-            document.getElementById('accResults').classList.add('hidden'); 
-            accSelected = { n, id }; 
+
+        function logout() { currentUser = null; render(); }
+
+        function renderMain() {
+            document.getElementById('app').innerHTML = `
+                <header class="flex-none w-full h-16 dar-green text-white px-5 flex justify-between items-center shadow-md z-50">
+                    <div class="overflow-hidden text-left"><h1 class="font-bold text-lg leading-tight truncate">${currentUser.fullName}</h1><p class="text-[10px] text-dar-gold tracking-wide font-bold uppercase">${currentUser.role}</p></div>
+                    <div class="flex items-center space-x-2"><button onclick="showChangePassword()" class="text-xl px-2">🔒</button><button onclick="logout()" class="text-xs bg-white/20 px-3 py-1.5 rounded-full font-bold">Logout</button></div>
+                </header>
+                <main id="mainContent" class="flex-grow w-full overflow-y-auto bg-gray-100 relative z-10 scroll-smooth"></main>
+                <nav class="flex-none w-full h-16 bg-white border-t flex z-50 pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                    <button onclick="switchTab('pending')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'pending' ? 'text-dar-green font-bold' : 'text-gray-400'}"><span class="text-xl">📥</span><span class="text-[9px] uppercase tracking-tighter">Pending</span></button>
+                    <button onclick="switchTab('approved')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'approved' ? 'text-dar-green font-bold' : 'text-gray-400'}"><span class="text-xl">✅</span><span class="text-[9px] uppercase tracking-tighter">Approved</span></button>
+                    <button onclick="switchTab('denied')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'denied' ? 'text-red-600 font-bold' : 'text-gray-400'}"><span class="text-xl">❌</span><span class="text-[9px] uppercase tracking-tighter">Denied</span></button>
+                    <button onclick="switchTab('reports')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'reports' ? 'text-blue-600 font-bold' : 'text-gray-400'}"><span class="text-xl">📊</span><span class="text-[9px] uppercase tracking-tighter">Reports</span></button>
+                </nav>
+                <div id="pwdModal" class="hidden absolute inset-0 bg-black/50 z-[60] flex items-center justify-center px-4 modal-fade"><div class="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"><div class="dar-green text-white p-4 font-bold text-center relative">Security<button onclick="hideChangePassword()" class="absolute right-4 text-xl leading-none">✕</button></div><div class="p-6 space-y-4"><input type="password" id="oldPwd" placeholder="Current Password" class="w-full px-4 py-2 border rounded-lg text-sm"><input type="password" id="newPwd" placeholder="New Password" class="w-full px-4 py-2 border rounded-lg text-sm"><button onclick="updatePassword()" class="w-full dar-green text-white font-bold py-3 rounded-xl">Save</button></div></div></div>`;
+            if (currentTab === 'pending') loadPendingTab();
+            else if (currentTab === 'approved') loadStatusTab('APPROVED');
+            else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
+            else loadReportsTab();
         }
-        async function runAccAudit() {
-            if(!accSelected) return alert("Select Employee");
-            const d1 = document.getElementById('accD1').value, d2 = document.getElementById('accD2').value;
-            if(!d1 || !d2) return alert("Select Dates");
-            const area = document.getElementById('accResultsArea');
-            area.innerHTML = `<p class="text-center p-10 font-bold animate-pulse text-slate-400 uppercase text-xs">Analyzing Specific Day Activities...</p>`;
-            area.classList.remove('hidden');
-            
-            const [itins, hols, bookings, psos, leaves, orders, ctos] = await Promise.all([
-                db.from('itinerary').select('*').gte('travel_date', d1).lte('travel_date', d2),
-                db.from('holidays').select('*').gte('date', d1).lte('date', d2),
-                db.from('fleet_bookings').select('*').eq('emp_id', accSelected.id).gte('travel_date', d1).lte('travel_date', d2),
-                db.from('pso_records').select('*').eq('emp_id', accSelected.id).lte('start_date', d2).gte('end_date', d1),
-                db.from('leave_ledger').select('*').eq('emp_id', accSelected.id).eq('transaction_type', 'APPROVED').lte('start_date', d2).gte('end_date', d1),
-                db.from('travel_orders').select('*').eq('emp_id', accSelected.id).eq('status', 'APPROVED'),
-                db.from('cto_records').select('*').eq('emp_id', accSelected.id).gte('leave_date', d1).lte('leave_date', d2)
-            ]);
 
-            const dates = []; let curr = new Date(d1); const end = new Date(d2);
-            while(curr <= end) { dates.push(curr.toISOString().split('T')[0]); curr.setDate(curr.getDate()+1); }
+        function switchTab(tab) { currentTab = tab; renderMain(); }
+        function showChangePassword() { document.getElementById('pwdModal').classList.remove('hidden'); }
+        function hideChangePassword() { document.getElementById('pwdModal').classList.add('hidden'); }
 
-            let html = '';
-            dates.forEach(date => {
-                const active = [];
-                hols.data.filter(h => h.date === date).forEach(h => active.push({type:'holiday', title:`📍 HOLIDAY`, sub:h.name, bg:'bg-red-50', txt:'text-red-700'}));
-                ctos.data.filter(c => c.leave_date === date).forEach(c => active.push({type:'cto', title:`⏳ CTO`, sub:c.purpose, bg:'bg-teal-50', txt:'text-teal-700'}));
-                leaves.data.filter(l => date >= l.start_date && date <= l.end_date).forEach(l => active.push({type:'leave', title:`🏖️ LEAVE: ${l.type}`, sub:l.remarks, bg:'bg-purple-50', txt:'text-purple-700'}));
-                bookings.data.filter(b => b.travel_date === date).forEach(b => active.push({type:'fleet', title:`🚗 FLEET: ${b.vehicle}`, sub:b.destination, bg:'bg-amber-50', txt:'text-amber-700'}));
-                psos.data.filter(p => date >= p.start_date && date <= p.end_date).forEach(p => active.push({type:'pso', title:`ℹ️ PSO: ${p.pso_no}`, sub:p.subject, bg:'bg-blue-50', txt:'text-blue-700'}));
-                const dayI = itins.data.filter(i => i.travel_date === date);
-                orders.data.filter(to => dayI.some(i => i.to_no === to.to_no)).forEach(t => active.push({type:'to', title:`📄 TO: ${t.to_no}`, sub:dayI.find(i=>i.to_no===t.to_no).destination, bg:'bg-green-50', txt:'text-dar'}));
+        async function updatePassword() {
+            const o = document.getElementById('oldPwd').value.trim();
+            const n = document.getElementById('newPwd').value.trim();
+            const { data } = await supabaseClient.from('users').select('password').eq('username', currentUser.username).single();
+            if (data.password !== o) return alert("Incorrect.");
+            await supabaseClient.from('users').update({ password: n }).eq('username', currentUser.username);
+            alert("Updated!"); hideChangePassword();
+        }
 
-                if(active.length > 0) {
-                    const conflict = active.length > 1;
-                    html += `<div class="bg-white rounded-2xl border p-5 shadow-sm ${conflict ? 'border-red-500' : 'border-slate-200'} relative">
-                        <div class="flex justify-between mb-3">
-                            <h4 class="text-sm font-black">${date}</h4>
-                            ${conflict ? '<span class="bg-red-600 text-white text-[8px] px-2 py-1 rounded font-black animate-pulse">⚠️ CONFLICT</span>' : ''}
-                        </div>
-                        <div class="space-y-2">${active.map(a => `<div class="p-3 rounded-xl border ${a.bg}"><h5 class="text-[9px] font-black uppercase ${a.txt}">${a.title}</h5><p class="text-[10px] italic">${a.sub}</p></div>`).join('')}</div>
-                    </div>`;
+        // --- SHARED SCOPE CHECK ---
+        const checkScope = (div, unit) => {
+            const role = currentUser.role;
+            if (role === "PARPO" || role === "VEHICLE_APPROVER") return true;
+            const dMatch = div && currentUser.divisions.includes(div.toUpperCase());
+            if (role === "CHIEF") return dMatch;
+            const uMatch = unit && unit.toUpperCase() === currentUser.unit;
+            return dMatch && uMatch;
+        };
+
+        // --- PENDING TAB ---
+        async function loadPendingTab() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full text-gray-400 font-bold animate-pulse">Syncing Inbox...</p>`;
+            const [oRes, iRes] = await Promise.all([supabaseClient.from('travel_orders').select('*'), supabaseClient.from('itinerary').select('*')]);
+            let grp = {};
+            (oRes.data || []).forEach(o => { if (!grp[o.to_no]) grp[o.to_no] = []; grp[o.to_no].push(o); });
+            pendingOrders = [];
+            for (const [to_no, list] of Object.entries(grp)) {
+                const o = list[0];
+                const s = (o.status || "").toUpperCase();
+                let show = false;
+                if (currentUser.role === "VEHICLE_APPROVER" && s === "PENDING_VEHICLE_RESERVATION") show = true;
+                else if (currentUser.role === "PARPO" && s === "PENDING_PARPO") show = true;
+                else if (currentUser.role === "CHIEF" && s === "PENDING_CHIEF" && currentUser.divisions.includes(o.division?.toUpperCase())) show = true;
+                else if ((currentUser.role === "UNIT_HEAD" || currentUser.role === "MARPO") && s === "PENDING_UNIT_HEAD" && currentUser.divisions.includes(o.division?.toUpperCase()) && currentUser.unit === o.unit?.toUpperCase()) show = true;
+                if (show) {
+                    let d = (iRes.data || []).filter(i => i.to_no === to_no);
+                    pendingOrders.push({ to_no, names: list.map(g => g.emp_name), destinations: d.map(i => i.destination).join(', ') || 'N/A' });
+                }
+            }
+            if (pendingOrders.length === 0) content.innerHTML = `<div class="flex flex-col items-center justify-center h-full opacity-50"><span class="text-4xl">✨</span><p class="font-bold mt-2 text-xs uppercase">Inbox Clear</p></div>`;
+            else {
+                let h = `<div class="p-4 space-y-4 pb-32">`;
+                pendingOrders.forEach(o => { h += `<div class="bg-white p-4 rounded-2xl shadow-sm border"><span class="text-[10px] font-black text-gray-300 uppercase">${o.to_no}</span><p class="font-bold text-gray-800">${o.names.join(', ')}</p><p class="text-xs text-gray-500 truncate">📍 ${o.destinations}</p><div class="flex justify-end space-x-2 mt-4"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Deny</button><button onclick="processSingle('${o.to_no}', 'APPROVE')" class="px-5 py-2 dar-green text-white rounded-xl text-[11px] font-bold">Approve</button></div></div>`; });
+                content.innerHTML = h + `</div>`;
+            }
+        }
+
+        async function processSingle(to_no, action) {
+            let p = action === 'DISAPPROVED' ? { status: "DISAPPROVED", received: prompt("Reason:") } : getAppPayload(currentUser);
+            if(p.status === "DISAPPROVED" && !p.received) return;
+            await supabaseClient.from('travel_orders').update(p).eq('to_no', to_no);
+            loadPendingTab();
+        }
+
+        function getAppPayload(u) {
+            if (u.role === "UNIT_HEAD" || u.role === "MARPO") return { status: "PENDING_CHIEF", unithead_signed: u.fullName };
+            if (u.role === "CHIEF") return { status: "PENDING_PARPO", dc_signed: u.fullName };
+            if (u.role === "PARPO") return { status: "APPROVED", parpo_signed: "RICARDO C. GARCIA" };
+            return {};
+        }
+
+        // --- APPROVED TAB (DETAILED) ---
+        async function loadStatusTab(status) {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full font-bold animate-pulse text-gray-400">Loading...</p>`;
+            const [oRes, iRes] = await Promise.all([supabaseClient.from('travel_orders').select('*').eq('status', status), supabaseClient.from('itinerary').select('*')]);
+            let h = `<div class="p-4 space-y-3">`;
+            (oRes.data || []).forEach(o => {
+                if (checkScope(o.division, o.unit)) {
+                    const myI = (iRes.data || []).filter(i => i.to_no === o.to_no).sort((a,b) => new Date(a.travel_date) - new Date(b.travel_date));
+                    const ds = [...new Set(myI.map(i => i.destination))].join(', ') || 'N/A';
+                    let dt = "N/A";
+                    if(myI.length > 0) {
+                        const start = new Date(myI[0].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        const end = new Date(myI[myI.length-1].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        dt = myI.length === 1 ? end : `${start} - ${end}`;
+                    }
+                    h += `<div class="bg-white p-4 rounded-xl border-l-4 ${status === 'APPROVED' ? 'border-dar-green' : 'border-red-500'}"><div class="flex justify-between mb-1"><span class="text-[9px] font-black uppercase text-gray-400">${status}</span><span class="text-[9px] text-gray-400">${o.to_no}</span></div><p class="font-bold text-gray-800 text-base">${o.emp_name}</p><p class="text-[11px] text-gray-500 mt-1">📍 ${ds}</p><p class="text-[11px] text-dar-green font-bold">📅 ${dt}</p></div>`;
                 }
             });
-            area.innerHTML = html || `<p class="text-center p-10 font-bold text-slate-300 uppercase">No Activity Recorded</p>`;
+            content.innerHTML = h + `</div>`;
         }
 
-        // ==========================================
-        // SYSTEM 2: FLEET MASTER PRO (Dispatch & Transfer)
-        // ==========================================
-        const VEHICLES = ["MAZDA", "REVO", "INNOVA", "SKY", "BLACK"];
-        let fleetOrders = [], fleetItins = [], fleetBookings = [], fleetTab = 'inbox';
-        
-        function initFleetMaster() {
-            renderFleetUI();
-            syncFleet();
-        }
-        function renderFleetUI() {
-            document.getElementById('app').innerHTML = `
-            <header class="flex-none w-full h-16 bg-dar text-white px-5 flex justify-between items-center shadow-md no-print">
-                <div class="text-left"><h1 class="font-bold text-lg">Dispatch Command</h1><p class="text-[10px] text-dar-gold font-bold uppercase">${currentUser.full_name}</p></div>
-                <div class="flex gap-2"><button onclick="syncFleet()" class="text-lg">🔄</button><button onclick="logout()" class="text-xs font-bold bg-white/20 px-3 py-1.5 rounded-full">Logout</button></div>
-            </header>
-            <main id="fleet-content" class="flex-grow w-full overflow-y-auto p-4 pb-32"></main>
-            <nav class="flex-none w-full h-16 bg-white border-t flex z-50 pb-safe shadow no-print">
-                <button onclick="switchFleetTab('inbox')" class="flex-1 flex flex-col items-center justify-center text-[10px] uppercase font-bold text-gray-400" id="ftab-inbox">📥 Inbox</button>
-                <button onclick="switchFleetTab('res')" class="flex-1 flex flex-col items-center justify-center text-[10px] uppercase font-bold text-gray-400" id="ftab-res">📋 List</button>
-                <button onclick="switchFleetTab('sched')" class="flex-1 flex flex-col items-center justify-center text-[10px] uppercase font-bold text-gray-400" id="ftab-sched">📅 Schedule</button>
-            </nav>
-            <div class="fixed bottom-20 right-4 no-print"><button onclick="openFleetModal()" class="bg-dar text-white border-2 border-dar-gold p-4 rounded-full font-black text-[10px] shadow-2xl">+ BOOKING</button></div>`;
-        }
-        async function syncFleet() {
-            const [o, i, b] = await Promise.all([db.from('travel_orders').select('*').neq('status','CANCELLED'), db.from('itinerary').select('*'), db.from('fleet_bookings').select('*')]);
-            fleetOrders = o.data; fleetItins = i.data; fleetBookings = b.data;
-            updateFleetView();
-        }
-        function switchFleetTab(t) { fleetTab = t; updateFleetView(); }
-        function updateFleetView() {
-            const m = document.getElementById('fleet-content');
-            document.querySelectorAll('nav button').forEach(b => b.classList.remove('text-dar'));
-            document.getElementById(`ftab-${fleetTab}`).classList.add('text-dar');
-            
-            if(fleetTab === 'inbox') renderFleetInbox(m);
-            else if(fleetTab === 'res') renderFleetReservations(m);
-            else renderFleetSchedule(m);
-        }
-        function renderFleetInbox(m) {
-            const pending = fleetOrders.filter(x => x.status === 'PENDING_VEHICLE_APPROVER');
-            if(!pending.length) { m.innerHTML = `<p class="text-center p-20 text-slate-300 font-bold uppercase text-xs">Inbox Clear</p>`; return; }
-            m.innerHTML = `<div class="space-y-4">` + pending.map(o => `
-                <div class="bg-white p-4 rounded-xl border shadow-sm">
-                    <span class="text-[9px] font-black text-dar">TO: ${o.to_no}</span>
-                    <h3 class="font-black text-sm uppercase">${o.emp_name}</h3>
-                    <div class="grid grid-cols-2 gap-2 mt-3">
-                        <select id="v-${o.to_no}" class="border rounded p-2 text-[10px] font-bold"><option disabled selected>Vehicle</option>${VEHICLES.map(v=>`<option>${v}</option>`).join('')}</select>
-                        <select id="s-${o.to_no}" class="border rounded p-2 text-[10px] font-bold"><option>WHOLE DAY</option><option>AM</option><option>PM</option></select>
-                    </div>
-                    <button onclick="approveFleetTrip('${o.to_no}', '${o.unit}')" class="w-full btn-primary py-2.5 mt-3 text-[10px]">Approve Request</button>
-                </div>`).join('') + `</div>`;
-        }
-        async function approveFleetTrip(to, unit) {
-            const v = document.getElementById(`v-${to}`).value;
-            if(v === 'Vehicle') return alert("Select Vehicle");
-            const route = (unit === "PARPO") ? "PENDING_PARPO" : (unit ? "PENDING_UNIT_HEAD" : "PENDING_CHIEF");
-            await db.from('travel_orders').update({ received: v, status: route, remarks: document.getElementById(`s-${to}`).value }).eq('to_no', to);
-            syncFleet();
+        // --- REPORTS (STRICT SCOPE + ACTUAL HOLIDAY NAMES + ASCENDING SORT) ---
+        async function loadReportsTab() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full text-blue-500 font-bold animate-pulse">Building Activity Dashboard...</p>`;
+            try {
+                const [toR, itR, psR, soR, hoR] = await Promise.all([
+                    supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED'),
+                    supabaseClient.from('itinerary').select('*'),
+                    supabaseClient.from('pso_records').select('*'),
+                    supabaseClient.from('so_records').select('*'),
+                    supabaseClient.from('holidays').select('*')
+                ]);
+                reportData = [];
+                let seen = new Set();
+                (itR.data || []).forEach(i => {
+                    const p = (toR.data || []).find(x => x.to_no === i.to_no);
+                    if(p && i.travel_date && checkScope(p.division, p.unit)) {
+                        const key = `${p.emp_name}-${i.travel_date}`;
+                        if (!seen.has(key)) { reportData.push({ type: 'TO', date: new Date(i.travel_date), title: p.emp_name, subtitle: i.destination, color: 'blue' }); seen.add(key); }
+                    }
+                });
+                (psR.data || []).forEach(p => { if(p.date && checkScope(p.division, p.unit)) reportData.push({ type: 'PSO', date: new Date(p.date), title: p.emp_name || 'Personnel', subtitle: p.destination || 'Field Work', color: 'purple' }); });
+                (soR.data || []).forEach(s => { if(s.date && checkScope(s.division, s.unit)) reportData.push({ type: 'SO', date: new Date(s.date), title: s.emp_name || 'Personnel', subtitle: s.destination || 'Special Assignment', color: 'orange' }); });
+                (hoR.data || []).forEach(h => { if(h.date) {
+                    const name = h.name || h.holiday || h.description || "Holiday";
+                    reportData.push({ type: 'HOLIDAY', date: new Date(h.date), title: name, subtitle: 'National/Local Holiday', color: 'red' }); 
+                }});
+                renderReportsShell();
+            } catch (e) { content.innerHTML = `<p class="p-10 text-red-500">Error.</p>`; }
         }
 
-        // ==========================================
-        // SYSTEM 3: EMPLOYEE PORTAL (Drafting & Status)
-        // ==========================================
-        let empItin = [], empPass = [];
-        function initEmployeePortal() {
-            empPass = [{ emp_id: currentUser.emp_id, name: currentUser.full_name, unit: currentUser.unit }];
-            renderEmpUI();
-        }
-        function renderEmpUI() {
-            document.getElementById('app').innerHTML = `
-            <header class="app-header h-16 px-5 border-b-2 border-dar-gold flex items-center justify-between bg-dar text-white">
-                <div><div class="font-bold text-sm leading-none">${currentUser.full_name}</div><div class="text-[9px] font-bold text-dar-gold uppercase">${currentUser.division} | ${currentUser.position}</div></div>
-                <button onclick="logout()" class="text-[10px] font-bold border border-white px-3 py-1 rounded">Logout</button>
-            </header>
-            <main id="emp-content" class="flex-grow overflow-y-auto p-4 pb-32"></main>
-            <nav class="flex-none h-16 bg-dar flex items-center">
-                <div onclick="renderEmpApply()" class="flex-1 text-center text-[9px] font-bold text-white uppercase">📝 Apply</div>
-                <div onclick="renderEmpStatus()" class="flex-1 text-center text-[9px] font-bold text-white uppercase">📋 Status</div>
-                <div onclick="renderEmpCalendar()" class="flex-1 text-center text-[9px] font-bold text-white uppercase">📅 Schedule</div>
-            </nav>`;
-            renderEmpApply();
-        }
-        function renderEmpApply() {
-            document.getElementById('emp-content').innerHTML = `
-            <div class="space-y-4">
-                <div class="bg-white p-4 rounded-xl border border-slate-200">
-                    <h4 class="text-[11px] font-black uppercase text-dar mb-3 border-b pb-1">1. Build Itinerary</h4>
-                    <div class="grid grid-cols-2 gap-2 mb-4">
-                        <input id="empD1" type="date" class="p-3 border rounded-xl text-sm" onchange="document.getElementById('empD2').value=this.value; prepEmpItin()">
-                        <input id="empD2" type="date" class="p-3 border rounded-xl text-sm" onchange="prepEmpItin()">
+        function renderReportsShell() {
+            document.getElementById('mainContent').innerHTML = `
+                <div class="sticky top-0 bg-gray-100 z-20 pt-4 px-4 pb-2 border-b shadow-sm">
+                    <h2 class="font-bold text-lg text-blue-900 mb-3 text-center tracking-tighter uppercase">Activity Analytics</h2>
+                    <div class="flex bg-gray-200 rounded-xl p-1 mb-3">
+                        <button id="btn-day" onclick="setReportFilter('day')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'day' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Today</button>
+                        <button id="btn-week" onclick="setReportFilter('week')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'week' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Week</button>
+                        <button id="btn-month" onclick="setReportFilter('month')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Month</button>
                     </div>
-                    <div id="empItinFields" class="space-y-3"></div>
                 </div>
-                <button onclick="submitEmpTO()" class="w-full btn-primary py-4 text-xs tracking-widest shadow-xl">🚀 Submit Travel Order</button>
-            </div>`;
-        }
-        function prepEmpItin() {
-            const d1 = document.getElementById('empD1').value, d2 = document.getElementById('empD2').value;
-            if(!d1 || !d2) return;
-            const container = document.getElementById('empItinFields');
-            container.innerHTML = ''; empItin = [];
-            let st = new Date(d1), en = new Date(d2);
-            while(st <= en) {
-                const ds = st.toISOString().split('T')[0];
-                container.innerHTML += `<div class="bg-slate-50 p-3 rounded-lg border">
-                    <p class="text-[10px] font-black text-slate-500 mb-2 uppercase">${ds}</p>
-                    <input id="dest-${ds}" placeholder="Destination" class="w-full p-2 border rounded-lg text-xs mb-2">
-                    <textarea id="purp-${ds}" placeholder="Purpose" class="w-full p-2 border rounded-lg text-xs" rows="2"></textarea>
-                </div>`;
-                empItin.push(ds);
-                st.setDate(st.getDate()+1);
-            }
-        }
-        async function submitEmpTO() {
-            const d1 = document.getElementById('empD1').value;
-            if(!d1 || !empItin.length) return alert("Setup Itinerary");
-            
-            // Logic for Sequence format YYYY-DIV-XXXXX from context
-            const year = new Date().getFullYear();
-            const divCode = currentUser.division.substring(0,4).toUpperCase();
-            const toNo = `${year}-${divCode}-${Math.floor(10000 + Math.random() * 90000)}`;
-
-            const payload = {
-                to_no: toNo, emp_id: currentUser.emp_id, emp_name: currentUser.full_name,
-                unit: currentUser.unit, division: currentUser.division, transport: 'LAND',
-                status: (currentUser.unit === 'PARPO') ? 'PENDING_PARPO' : (currentUser.unit ? 'PENDING_UNIT_HEAD' : 'PENDING_CHIEF')
-            };
-
-            const itinPayload = empItin.map(d => ({
-                to_no: toNo, travel_date: d, 
-                destination: document.getElementById(`dest-${d}`).value,
-                purpose: document.getElementById(`purp-${d}`).value
-            }));
-
-            await db.from('travel_orders').insert(payload);
-            await db.from('itinerary').insert(itinPayload);
-            alert("Submitted: " + toNo);
-            renderEmpStatus();
+                <div id="reportListContainer" class="p-4 space-y-4 pb-20"></div>`;
+            updateReportList();
         }
 
-        async function renderEmpStatus() {
-            const {data} = await db.from('travel_orders').select('*').eq('emp_id', currentUser.emp_id).order('created_at', {ascending:false}).limit(10);
-            document.getElementById('emp-content').innerHTML = `<h3 class="font-black text-dar mb-4 uppercase tracking-widest text-sm">Applications</h3>` + 
-            data.map(to => `
-                <div class="bg-white p-4 rounded-xl border-l-4 mb-3 ${to.status==='APPROVED'?'border-green-500':'border-dar-gold'}">
-                    <div class="flex justify-between items-start">
-                        <span class="text-[9px] font-bold text-slate-400">${to.to_no}</span>
-                        <span class="text-[9px] font-black uppercase">${to.status.replace(/_/g, ' ')}</span>
-                    </div>
-                    <p class="font-bold text-xs uppercase mt-1">${to.transport} - ${to.received || 'NO VEHICLE ASSIGNED'}</p>
-                </div>`).join('');
+        function setReportFilter(v) { reportFilter = v; renderReportsShell(); }
+
+        function updateReportList() {
+            const container = document.getElementById('reportListContainer');
+            const now = new Date(); now.setHours(0,0,0,0);
+            let f = reportData.filter(r => {
+                const d = new Date(r.date); d.setHours(0,0,0,0);
+                if (reportFilter === 'day') return d.getTime() === now.getTime();
+                if (reportFilter === 'week') { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); const e = new Date(s); e.setDate(s.getDate() + 6); return d >= s && d <= e; }
+                if (reportFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                return true;
+            });
+            // 1st ONWARDS for Month View (Ascending)
+            if (reportFilter === 'month') f.sort((a, b) => a.date - b.date);
+            else f.sort((a, b) => b.date - a.date);
+            if (f.length === 0) { container.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold text-[10px] tracking-widest uppercase">No Records Found</p>`; return; }
+            let h = '', last = '';
+            f.forEach(r => {
+                const cur = r.date.toDateString();
+                if (cur !== last) {
+                    last = cur;
+                    h += `<h3 class="text-[10px] font-black text-gray-400 mt-6 mb-2 tracking-widest text-left border-b pb-1 uppercase">${r.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</h3>`;
+                }
+                const cMap = { blue: 'border-blue-500 bg-blue-50 text-blue-800', purple: 'border-purple-500 bg-purple-50 text-purple-800', orange: 'border-orange-500 bg-orange-50 text-orange-800', red: 'border-red-500 bg-red-50 text-red-800' };
+                const c = cMap[r.color];
+                h += `<div class="bg-white p-4 rounded-2xl border-l-4 shadow-sm flex items-center justify-between text-left ${c.split(' ')[0]}"><div class="overflow-hidden"><p class="font-bold text-sm text-gray-800 truncate">${r.title}</p><p class="text-[10px] text-gray-500 truncate mt-1">📍 ${r.subtitle || 'N/A'}</p></div><div class="shrink-0 ml-2"><span class="text-[8px] font-black px-2 py-1 rounded-md uppercase ${c.split(' ').slice(1).join(' ')}">${r.type}</span></div></div>`;
+            });
+            container.innerHTML = h;
         }
 
-        // ==========================================
-        // SYSTEM 4: ADMIN CONSOLE (Approvals)
-        // ==========================================
-        function initAdminConsole() {
-            renderAdminUI();
-            loadAdminPending();
-        }
-        function renderAdminUI() {
-            document.getElementById('app').innerHTML = `
-            <header class="h-16 bg-dar text-white px-5 flex items-center justify-between border-b-2 border-dar-gold">
-                <div><h1 class="font-bold text-sm">Admin Console</h1><p class="text-[9px] text-dar-gold uppercase font-bold">${currentUser.full_name} | ${userRole}</p></div>
-                <button onclick="logout()" class="text-[10px] font-bold bg-white/20 px-3 py-1 rounded">Logout</button>
-            </header>
-            <main id="admin-content" class="flex-grow overflow-y-auto p-4"></main>
-            <nav class="h-16 bg-white border-t flex items-center">
-                <div onclick="loadAdminPending()" class="flex-1 text-center text-[9px] font-black text-dar uppercase">📥 Pending</div>
-                <div onclick="loadAdminHistory()" class="flex-1 text-center text-[9px] font-black text-dar uppercase">📜 Archive</div>
-            </nav>`;
-        }
-        async function loadAdminPending() {
-            const targetStatus = (userRole === 'UNIT_HEAD') ? 'PENDING_UNIT_HEAD' : (userRole === 'CHIEF' ? 'PENDING_CHIEF' : 'PENDING_PARPO');
-            const {data} = await db.from('travel_orders').select('*').eq('status', targetStatus);
-            const m = document.getElementById('admin-content');
-            if(!data.length) { m.innerHTML = `<p class="text-center p-20 text-slate-300 font-bold uppercase text-[10px]">No Actions Required</p>`; return; }
-            
-            m.innerHTML = data.map(o => `
-            <div class="bg-white p-5 rounded-2xl border shadow-sm mb-4">
-                <p class="text-[9px] font-bold text-slate-400 mb-1">${o.to_no}</p>
-                <h3 class="font-black text-dar-green uppercase text-sm">${o.emp_name}</h3>
-                <p class="text-[10px] text-slate-500 mb-4">${o.transport} | ${o.division}</p>
-                <div class="flex gap-2">
-                    <button onclick="adminAction('${o.to_no}', 'DISAPPROVED')" class="flex-1 border border-red-500 text-red-500 rounded-xl font-bold py-2.5 text-[10px]">Deny</button>
-                    <button onclick="adminAction('${o.to_no}', 'APPROVE')" class="flex-1 btn-primary rounded-xl py-2.5 text-[10px]">Approve</button>
-                </div>
-            </div>`).join('');
-        }
-        async function adminAction(toNo, act) {
-            let next = '';
-            if(act === 'DISAPPROVED') next = 'DISAPPROVED';
-            else {
-                if(userRole === 'UNIT_HEAD') next = 'PENDING_CHIEF';
-                else if(userRole === 'CHIEF') next = 'PENDING_PARPO';
-                else next = 'APPROVED';
-            }
-            const update = { status: next };
-            if(userRole === 'UNIT_HEAD') update.unithead_signed = currentUser.full_name;
-            if(userRole === 'CHIEF') update.dc_signed = currentUser.full_name;
-            if(userRole === 'PARPO') update.parpo_signed = "RICARDO C. GARCIA";
-
-            await db.from('travel_orders').update(update).eq('to_no', toNo);
-            loadAdminPending();
-        }
-
-        // --- GLOBAL HELPERS ---
-        function showChangePwd() {
-            const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 modal-fade z-[300]';
-            modal.id = 'pwd-modal';
-            modal.innerHTML = `
-                <div class="bg-white w-full max-w-sm rounded-3xl p-8 relative">
-                    <button onclick="this.closest('#pwd-modal').remove()" class="absolute top-4 right-4 text-slate-400">✕</button>
-                    <h2 class="text-dar font-black text-xl mb-6 border-b pb-2 uppercase tracking-tighter">Security Update</h2>
-                    <input type="password" id="new-pw" placeholder="Enter New Password" class="w-full p-4 border rounded-2xl mb-4 outline-none focus:ring-2 focus:ring-dar">
-                    <button onclick="executeGlobalPwdUpdate()" class="w-full btn-primary py-4 text-xs">Update My Password</button>
-                </div>`;
-            document.body.appendChild(modal);
-        }
-        async function executeGlobalPwdUpdate() {
-            const npw = document.getElementById('new-pw').value.trim();
-            if(!npw) return alert("Enter password");
-            const table = (userRole === 'EMPLOYEE') ? 'employees' : 'users';
-            const col = (userRole === 'EMPLOYEE') ? 'pass' : 'password';
-            const filterCol = (userRole === 'EMPLOYEE') ? 'emp_id' : 'username';
-            const filterVal = (userRole === 'EMPLOYEE') ? currentUser.emp_id : currentUser.username;
-            
-            await db.from(table).update({ [col]: npw }).eq(filterCol, filterVal);
-            alert("Success. Please relogin."); location.reload();
-        }
+        window.onload = render;
     </script>
 </body>
 </html>
