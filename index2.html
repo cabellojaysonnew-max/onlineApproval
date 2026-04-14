@@ -191,10 +191,7 @@
             let p = action === 'DISAPPROVED' ? { status: "DISAPPROVED", received: prompt("Reason:") } : getAppPayload(currentUser);
             if(p.status === "DISAPPROVED" && !p.received) return;
             await supabaseClient.from('travel_orders').update(p).eq('to_no', to_no);
-            
-            if (currentTab === 'pending') loadPendingTab();
-            else if (currentTab === 'approved') loadStatusTab('APPROVED');
-            else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
+            loadPendingTab();
         }
 
         function getAppPayload(u) {
@@ -205,7 +202,7 @@
         }
 
         // --- APPROVED / DENIED TAB (DETAILED) ---
-        async function loadStatusTab(tabType) {
+        async function loadStatusTab(tabStatus) {
             const content = document.getElementById('mainContent');
             content.innerHTML = `<p class="flex items-center justify-center h-full font-bold animate-pulse text-gray-400">Loading...</p>`;
             
@@ -220,10 +217,10 @@
                 if (checkScope(o.division, o.unit)) {
                     let show = false;
                     let displayStatus = o.status;
-                    let badgeColor = 'border-gray-300';
-                    let textClass = 'text-gray-400';
+                    let borderColor = tabStatus === 'APPROVED' ? 'border-dar-green' : 'border-red-500';
+                    let textColor = 'text-gray-400';
 
-                    if (tabType === 'APPROVED') {
+                    if (tabStatus === 'APPROVED') {
                         if (currentUser.role === 'UNIT_HEAD' || currentUser.role === 'MARPO') {
                             if (['PENDING_CHIEF', 'PENDING_PARPO', 'APPROVED'].includes(o.status)) show = true;
                         } else if (currentUser.role === 'CHIEF') {
@@ -233,26 +230,25 @@
                         }
 
                         if (show) {
-                            if (o.status === 'PENDING_CHIEF') { 
-                                displayStatus = 'UNIT HEAD APPROVED'; 
-                                badgeColor = 'border-yellow-500'; 
-                                textClass = 'text-yellow-600'; 
-                            } else if (o.status === 'PENDING_PARPO') { 
-                                displayStatus = 'DIVISION CHIEF APPROVED'; 
-                                badgeColor = 'border-blue-500'; 
-                                textClass = 'text-blue-600'; 
-                            } else if (o.status === 'APPROVED') { 
-                                displayStatus = 'PARPO APPROVED'; 
-                                badgeColor = 'border-dar-green'; 
-                                textClass = 'text-dar-green'; 
+                            if (o.status === 'PENDING_CHIEF') {
+                                displayStatus = 'PENDING CHIEF';
+                                borderColor = 'border-yellow-500';
+                                textColor = 'text-yellow-600';
+                            } else if (o.status === 'PENDING_PARPO') {
+                                displayStatus = 'PENDING PARPO';
+                                borderColor = 'border-blue-500';
+                                textColor = 'text-blue-600';
+                            } else if (o.status === 'APPROVED') {
+                                displayStatus = 'APPROVED';
+                                borderColor = 'border-dar-green';
+                                textColor = 'text-dar-green';
                             }
                         }
-                    } else if (tabType === 'DISAPPROVED') {
+                    } else if (tabStatus === 'DISAPPROVED') {
                         if (o.status === 'DISAPPROVED') {
                             show = true;
-                            displayStatus = 'DENIED';
-                            badgeColor = 'border-red-500';
-                            textClass = 'text-red-500';
+                            displayStatus = 'DISAPPROVED';
+                            textColor = 'text-red-500';
                         }
                     }
 
@@ -266,12 +262,7 @@
                             dt = myI.length === 1 ? end : `${start} - ${end}`;
                         }
                         
-                        let cancelBtn = '';
-                        if (tabType === 'APPROVED') {
-                            cancelBtn = `<div class="mt-3 pt-3 border-t border-gray-100 flex justify-end"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Cancel TO</button></div>`;
-                        }
-
-                        h += `<div class="bg-white p-4 rounded-xl border-l-4 ${badgeColor} shadow-sm"><div class="flex justify-between mb-1"><span class="text-[9px] font-black uppercase ${textClass}">${displayStatus}</span><span class="text-[9px] text-gray-400">${o.to_no}</span></div><p class="font-bold text-gray-800 text-base">${o.emp_name}</p><p class="text-[11px] text-gray-500 mt-1">📍 ${ds}</p><p class="text-[11px] text-dar-green font-bold mt-1">📅 ${dt}</p>${cancelBtn}</div>`;
+                        h += `<div class="bg-white p-4 rounded-xl border-l-4 ${borderColor}"><div class="flex justify-between mb-1"><span class="text-[9px] font-black uppercase ${textColor}">${displayStatus}</span><span class="text-[9px] text-gray-400">${o.to_no}</span></div><p class="font-bold text-gray-800 text-base">${o.emp_name}</p><p class="text-[11px] text-gray-500 mt-1">📍 ${ds}</p><p class="text-[11px] text-dar-green font-bold">📅 ${dt}</p></div>`;
                     }
                 }
             });
