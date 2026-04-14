@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>DAR Console</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="DAR Console">
+    <meta name="theme-color" content="#003811">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <link id="pwa-manifest" rel="manifest">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        .dar-green { background-color: #003811; }
+        .text-dar-green { color: #003811; }
+        .dar-gold { background-color: #D4AF37; }
+        .text-dar-gold { color: #D4AF37; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #f3f4f6; 
+            -webkit-tap-highlight-color: transparent; 
+            overscroll-behavior-y: none; 
+        }
+        
+        ::-webkit-scrollbar { display: none; }
+        .modal-fade { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .batch-bar-position { bottom: calc(4rem + env(safe-area-inset-bottom)); }
+    </style>
+</head>
+<body class="h-[100dvh] w-full flex flex-col overflow-hidden text-gray-800 bg-gray-100 text-left">
+
+    <div id="app" class="w-full h-full flex flex-col relative"></div>
+
+    <script>
+        const manifestData = {
+            "name": "DAR Cam Sur 1 Console",
+            "short_name": "DAR Console",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#F3F4F6",
+            "theme_color": "#003811",
+            "icons": [{
+                "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzAwMzgxMSIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iI0Q0QUYzNyI+RDwvdGV4dD48L3N2Zz4=",
+                "sizes": "192x192",
+                "type": "image/svg+xml"
+            }]
+        };
+        document.getElementById('pwa-manifest').setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestData)));
+
+        // --- SUPABASE CONFIG ---
+        const SUPABASE_URL = "https://ytfpiyfapvybihlngxks.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0ZnBpeWZhcHZ5YmlobG5neGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMDA2MTIsImV4cCI6MjA4NTY3NjYxMn0.7TRVjvFjxVtxkP_hL3wnlxPT6FXJd0y7aKHNzDHThAQ";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let currentUser = null;
+        let currentTab = 'pending'; 
+        let reportFilter = 'month'; 
+        let reportData = [];
+
+        function render() { if (!currentUser) renderLogin(); else renderMain(); }
+
+        function renderLogin() {
+            document.getElementById('app').innerHTML = `
+                <div class="flex-grow flex flex-col justify-center items-center px-6 dar-green h-full">
+                    <div class="z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+                        <div class="dar-gold h-2 w-full"></div>
+                        <div class="p-8">
+                            <h1 class="text-dar-green font-bold text-3xl font-serif mb-1 text-center">DAR</h1>
+                            <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-6 uppercase text-center">Cam Sur 1 Console</p>
+                            <div class="space-y-4">
+                                <div><label class="block text-xs font-bold text-gray-700 mb-1">USERNAME</label><input type="text" id="username" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
+                                <div><label class="block text-xs font-bold text-gray-700 mb-1">PASSWORD</label><input type="password" id="password" class="w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none"></div>
+                                <p id="loginError" class="text-red-600 text-[10px] font-bold text-center hidden"></p>
+                                <button onclick="handleLogin()" id="loginBtn" class="w-full mt-2 dar-green text-white font-bold py-3.5 rounded-xl shadow-lg">LOG IN</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('password').addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
+        }
+
+        async function handleLogin() {
+            const uBox = document.getElementById('username').value.trim();
+            const pBox = document.getElementById('password').value.trim();
+            const err = document.getElementById('loginError');
+            try {
+                const { data: users } = await supabaseClient.from('users').select('*');
+                const u = (users || []).find(x => x.username === uBox && x.password === pBox);
+                if (u) {
+                    currentUser = { username: u.username, fullName: u.full_name, role: u.role.toUpperCase(), divisions: u.division ? u.division.split(',').map(d => d.trim().toUpperCase()) : [], unit: u.unit ? u.unit.trim().toUpperCase() : '' };
+                    render();
+                } else { err.innerText = "Check credentials."; err.classList.remove("hidden"); }
+            } catch (e) { err.innerText = "Error."; err.classList.remove("hidden"); }
+        }
+
+        function logout() { currentUser = null; render(); }
+
+        function renderMain() {
+            document.getElementById('app').innerHTML = `
+                <header class="flex-none w-full h-16 dar-green text-white px-5 flex justify-between items-center shadow-md z-50">
+                    <div class="overflow-hidden text-left"><h1 class="font-bold text-lg leading-tight truncate">${currentUser.fullName}</h1><p class="text-[10px] text-dar-gold tracking-wide font-bold uppercase">${currentUser.role}</p></div>
+                    <div class="flex items-center space-x-2"><button onclick="showChangePassword()" class="text-xl px-2">🔒</button><button onclick="logout()" class="text-xs bg-white/20 px-3 py-1.5 rounded-full font-bold">Logout</button></div>
+                </header>
+                <main id="mainContent" class="flex-grow w-full overflow-y-auto bg-gray-100 relative z-10 scroll-smooth"></main>
+                <nav class="flex-none w-full h-16 bg-white border-t flex z-50 pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                    <button onclick="switchTab('pending')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'pending' ? 'text-dar-green font-bold' : 'text-gray-400'}"><span class="text-xl">📥</span><span class="text-[9px] uppercase tracking-tighter">Pending</span></button>
+                    <button onclick="switchTab('approved')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'approved' ? 'text-dar-green font-bold' : 'text-gray-400'}"><span class="text-xl">✅</span><span class="text-[9px] uppercase tracking-tighter">Approved</span></button>
+                    <button onclick="switchTab('denied')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'denied' ? 'text-red-600 font-bold' : 'text-gray-400'}"><span class="text-xl">❌</span><span class="text-[9px] uppercase tracking-tighter">Denied</span></button>
+                    <button onclick="switchTab('reports')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'reports' ? 'text-blue-600 font-bold' : 'text-gray-400'}"><span class="text-xl">📊</span><span class="text-[9px] uppercase tracking-tighter">Reports</span></button>
+                </nav>
+                <div id="pwdModal" class="hidden absolute inset-0 bg-black/50 z-[60] flex items-center justify-center px-4 modal-fade"><div class="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"><div class="dar-green text-white p-4 font-bold text-center relative">Security<button onclick="hideChangePassword()" class="absolute right-4 text-xl leading-none">✕</button></div><div class="p-6 space-y-4"><input type="password" id="oldPwd" placeholder="Current Password" class="w-full px-4 py-2 border rounded-lg text-sm"><input type="password" id="newPwd" placeholder="New Password" class="w-full px-4 py-2 border rounded-lg text-sm"><button onclick="updatePassword()" class="w-full dar-green text-white font-bold py-3 rounded-xl">Save</button></div></div></div>`;
+            if (currentTab === 'pending') loadPendingTab();
+            else if (currentTab === 'approved') loadStatusTab('APPROVED');
+            else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
+            else loadReportsTab();
+        }
+
+        function switchTab(tab) { currentTab = tab; renderMain(); }
+        function showChangePassword() { document.getElementById('pwdModal').classList.remove('hidden'); }
+        function hideChangePassword() { document.getElementById('pwdModal').classList.add('hidden'); }
+
+        async function updatePassword() {
+            const o = document.getElementById('oldPwd').value.trim();
+            const n = document.getElementById('newPwd').value.trim();
+            const { data } = await supabaseClient.from('users').select('password').eq('username', currentUser.username).single();
+            if (data.password !== o) return alert("Incorrect.");
+            await supabaseClient.from('users').update({ password: n }).eq('username', currentUser.username);
+            alert("Updated!"); hideChangePassword();
+        }
+
+        // --- SHARED SCOPE CHECK ---
+        const checkScope = (div, unit) => {
+            const role = currentUser.role;
+            if (role === "PARPO" || role === "VEHICLE_APPROVER") return true;
+            const dMatch = div && currentUser.divisions.includes(div.toUpperCase());
+            if (role === "CHIEF") return dMatch;
+            const uMatch = unit && unit.toUpperCase() === currentUser.unit;
+            return dMatch && uMatch;
+        };
+
+        // --- PENDING TAB ---
+        async function loadPendingTab() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full text-gray-400 font-bold animate-pulse">Syncing Inbox...</p>`;
+            const [oRes, iRes] = await Promise.all([supabaseClient.from('travel_orders').select('*'), supabaseClient.from('itinerary').select('*')]);
+            let grp = {};
+            (oRes.data || []).forEach(o => { if (!grp[o.to_no]) grp[o.to_no] = []; grp[o.to_no].push(o); });
+            pendingOrders = [];
+            for (const [to_no, list] of Object.entries(grp)) {
+                const o = list[0];
+                const s = (o.status || "").toUpperCase();
+                let show = false;
+                if (currentUser.role === "VEHICLE_APPROVER" && s === "PENDING_VEHICLE_RESERVATION") show = true;
+                else if (currentUser.role === "PARPO" && s === "PENDING_PARPO") show = true;
+                else if (currentUser.role === "CHIEF" && s === "PENDING_CHIEF" && currentUser.divisions.includes(o.division?.toUpperCase())) show = true;
+                else if ((currentUser.role === "UNIT_HEAD" || currentUser.role === "MARPO") && s === "PENDING_UNIT_HEAD" && currentUser.divisions.includes(o.division?.toUpperCase()) && currentUser.unit === o.unit?.toUpperCase()) show = true;
+                if (show) {
+                    let d = (iRes.data || []).filter(i => i.to_no === to_no).sort((a,b) => new Date(a.travel_date) - new Date(b.travel_date));
+                    let dt = "N/A";
+                    if(d.length > 0) {
+                        const start = new Date(d[0].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        const end = new Date(d[d.length-1].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        dt = d.length === 1 ? end : `${start} - ${end}`;
+                    }
+                    pendingOrders.push({ to_no, names: list.map(g => g.emp_name), destinations: [...new Set(d.map(i => i.destination))].join(', ') || 'N/A', dateStr: dt });
+                }
+            }
+            if (pendingOrders.length === 0) content.innerHTML = `<div class="flex flex-col items-center justify-center h-full opacity-50"><span class="text-4xl">✨</span><p class="font-bold mt-2 text-xs uppercase">Inbox Clear</p></div>`;
+            else {
+                let h = `<div class="p-4 space-y-4 pb-32">`;
+                pendingOrders.forEach(o => { h += `<div class="bg-white p-4 rounded-2xl shadow-sm border"><span class="text-[10px] font-black text-gray-300 uppercase">${o.to_no}</span><p class="font-bold text-gray-800">${o.names.join(', ')}</p><p class="text-xs text-gray-500 truncate">📍 ${o.destinations}</p><p class="text-[11px] text-dar-green font-bold mt-1">📅 ${o.dateStr}</p><div class="flex justify-end space-x-2 mt-4"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Deny</button><button onclick="processSingle('${o.to_no}', 'APPROVE')" class="px-5 py-2 dar-green text-white rounded-xl text-[11px] font-bold">Approve</button></div></div>`; });
+                content.innerHTML = h + `</div>`;
+            }
+        }
+
+        async function processSingle(to_no, action) {
+            let p = action === 'DISAPPROVED' ? { status: "DISAPPROVED", received: prompt("Reason:") } : getAppPayload(currentUser);
+            if(p.status === "DISAPPROVED" && !p.received) return;
+            await supabaseClient.from('travel_orders').update(p).eq('to_no', to_no);
+            
+            if (currentTab === 'pending') loadPendingTab();
+            else if (currentTab === 'approved') loadStatusTab('APPROVED');
+            else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
+        }
+
+        function getAppPayload(u) {
+            if (u.role === "UNIT_HEAD" || u.role === "MARPO") return { status: "PENDING_CHIEF", unithead_signed: u.fullName };
+            if (u.role === "CHIEF") return { status: "PENDING_PARPO", dc_signed: u.fullName };
+            if (u.role === "PARPO") return { status: "APPROVED", parpo_signed: "RICARDO C. GARCIA" };
+            return {};
+        }
+
+        // --- APPROVED / DENIED TAB (DETAILED) ---
+        async function loadStatusTab(tabType) {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full font-bold animate-pulse text-gray-400">Loading...</p>`;
+            
+            const [oRes, iRes] = await Promise.all([
+                supabaseClient.from('travel_orders').select('*'), 
+                supabaseClient.from('itinerary').select('*')
+            ]);
+            
+            let h = `<div class="p-4 space-y-3 pb-32">`;
+            
+            (oRes.data || []).forEach(o => {
+                if (checkScope(o.division, o.unit)) {
+                    let show = false;
+                    let displayStatus = o.status;
+                    let badgeColor = 'border-gray-300';
+                    let textClass = 'text-gray-400';
+
+                    if (tabType === 'APPROVED') {
+                        if (currentUser.role === 'UNIT_HEAD' || currentUser.role === 'MARPO') {
+                            if (['PENDING_CHIEF', 'PENDING_PARPO', 'APPROVED'].includes(o.status)) show = true;
+                        } else if (currentUser.role === 'CHIEF') {
+                            if (['PENDING_PARPO', 'APPROVED'].includes(o.status)) show = true;
+                        } else if (currentUser.role === 'PARPO' || currentUser.role === 'VEHICLE_APPROVER') {
+                            if (o.status === 'APPROVED') show = true;
+                        }
+
+                        if (show) {
+                            if (o.status === 'PENDING_CHIEF') { 
+                                displayStatus = 'UNIT HEAD APPROVED'; 
+                                badgeColor = 'border-yellow-500'; 
+                                textClass = 'text-yellow-600'; 
+                            } else if (o.status === 'PENDING_PARPO') { 
+                                displayStatus = 'DIVISION CHIEF APPROVED'; 
+                                badgeColor = 'border-blue-500'; 
+                                textClass = 'text-blue-600'; 
+                            } else if (o.status === 'APPROVED') { 
+                                displayStatus = 'PARPO APPROVED'; 
+                                badgeColor = 'border-dar-green'; 
+                                textClass = 'text-dar-green'; 
+                            }
+                        }
+                    } else if (tabType === 'DISAPPROVED') {
+                        if (o.status === 'DISAPPROVED') {
+                            show = true;
+                            displayStatus = 'DENIED';
+                            badgeColor = 'border-red-500';
+                            textClass = 'text-red-500';
+                        }
+                    }
+
+                    if (show) {
+                        const myI = (iRes.data || []).filter(i => i.to_no === o.to_no).sort((a,b) => new Date(a.travel_date) - new Date(b.travel_date));
+                        const ds = [...new Set(myI.map(i => i.destination))].join(', ') || 'N/A';
+                        let dt = "N/A";
+                        if(myI.length > 0) {
+                            const start = new Date(myI[0].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            const end = new Date(myI[myI.length-1].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            dt = myI.length === 1 ? end : `${start} - ${end}`;
+                        }
+                        
+                        let cancelBtn = '';
+                        if (tabType === 'APPROVED') {
+                            cancelBtn = `<div class="mt-3 pt-3 border-t border-gray-100 flex justify-end"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Cancel TO</button></div>`;
+                        }
+
+                        h += `<div class="bg-white p-4 rounded-xl border-l-4 ${badgeColor} shadow-sm"><div class="flex justify-between mb-1"><span class="text-[9px] font-black uppercase ${textClass}">${displayStatus}</span><span class="text-[9px] text-gray-400">${o.to_no}</span></div><p class="font-bold text-gray-800 text-base">${o.emp_name}</p><p class="text-[11px] text-gray-500 mt-1">📍 ${ds}</p><p class="text-[11px] text-dar-green font-bold mt-1">📅 ${dt}</p>${cancelBtn}</div>`;
+                    }
+                }
+            });
+            content.innerHTML = h + `</div>`;
+        }
+
+        // --- REPORTS (STRICT SCOPE + ACTUAL HOLIDAY NAMES + ASCENDING SORT) ---
+        async function loadReportsTab() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full text-blue-500 font-bold animate-pulse">Building Activity Dashboard...</p>`;
+            try {
+                const [toR, itR, psR, soR, hoR] = await Promise.all([
+                    supabaseClient.from('travel_orders').select('*').eq('status', 'APPROVED'),
+                    supabaseClient.from('itinerary').select('*'),
+                    supabaseClient.from('pso_records').select('*'),
+                    supabaseClient.from('so_records').select('*'),
+                    supabaseClient.from('holidays').select('*')
+                ]);
+                reportData = [];
+                let seen = new Set();
+                (itR.data || []).forEach(i => {
+                    const p = (toR.data || []).find(x => x.to_no === i.to_no);
+                    if(p && i.travel_date && checkScope(p.division, p.unit)) {
+                        const key = `${p.emp_name}-${i.travel_date}`;
+                        if (!seen.has(key)) { reportData.push({ type: 'TO', date: new Date(i.travel_date), title: p.emp_name, subtitle: i.destination, color: 'blue' }); seen.add(key); }
+                    }
+                });
+                (psR.data || []).forEach(p => { if(p.date && checkScope(p.division, p.unit)) reportData.push({ type: 'PSO', date: new Date(p.date), title: p.emp_name || 'Personnel', subtitle: p.destination || 'Field Work', color: 'purple' }); });
+                (soR.data || []).forEach(s => { if(s.date && checkScope(s.division, s.unit)) reportData.push({ type: 'SO', date: new Date(s.date), title: s.emp_name || 'Personnel', subtitle: s.destination || 'Special Assignment', color: 'orange' }); });
+                (hoR.data || []).forEach(h => { if(h.date) {
+                    const name = h.name || h.holiday || h.description || "Holiday";
+                    reportData.push({ type: 'HOLIDAY', date: new Date(h.date), title: name, subtitle: 'National/Local Holiday', color: 'red' }); 
+                }});
+                renderReportsShell();
+            } catch (e) { content.innerHTML = `<p class="p-10 text-red-500">Error.</p>`; }
+        }
+
+        function renderReportsShell() {
+            document.getElementById('mainContent').innerHTML = `
+                <div class="sticky top-0 bg-gray-100 z-20 pt-4 px-4 pb-2 border-b shadow-sm">
+                    <h2 class="font-bold text-lg text-blue-900 mb-3 text-center tracking-tighter uppercase">Activity Analytics</h2>
+                    <div class="flex bg-gray-200 rounded-xl p-1 mb-3">
+                        <button id="btn-day" onclick="setReportFilter('day')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'day' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Today</button>
+                        <button id="btn-week" onclick="setReportFilter('week')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'week' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Week</button>
+                        <button id="btn-month" onclick="setReportFilter('month')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg ${reportFilter === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500'}">Month</button>
+                    </div>
+                </div>
+                <div id="reportListContainer" class="p-4 space-y-4 pb-20"></div>`;
+            updateReportList();
+        }
+
+        function setReportFilter(v) { reportFilter = v; renderReportsShell(); }
+
+        function updateReportList() {
+            const container = document.getElementById('reportListContainer');
+            const now = new Date(); now.setHours(0,0,0,0);
+            let f = reportData.filter(r => {
+                const d = new Date(r.date); d.setHours(0,0,0,0);
+                if (reportFilter === 'day') return d.getTime() === now.getTime();
+                if (reportFilter === 'week') { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); const e = new Date(s); e.setDate(s.getDate() + 6); return d >= s && d <= e; }
+                if (reportFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                return true;
+            });
+            // 1st ONWARDS for Month View (Ascending)
+            if (reportFilter === 'month') f.sort((a, b) => a.date - b.date);
+            else f.sort((a, b) => b.date - a.date);
+            if (f.length === 0) { container.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold text-[10px] tracking-widest uppercase">No Records Found</p>`; return; }
+            let h = '', last = '';
+            f.forEach(r => {
+                const cur = r.date.toDateString();
+                if (cur !== last) {
+                    last = cur;
+                    h += `<h3 class="text-[10px] font-black text-gray-400 mt-6 mb-2 tracking-widest text-left border-b pb-1 uppercase">${r.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</h3>`;
+                }
+                const cMap = { blue: 'border-blue-500 bg-blue-50 text-blue-800', purple: 'border-purple-500 bg-purple-50 text-purple-800', orange: 'border-orange-500 bg-orange-50 text-orange-800', red: 'border-red-500 bg-red-50 text-red-800' };
+                const c = cMap[r.color];
+                h += `<div class="bg-white p-4 rounded-2xl border-l-4 shadow-sm flex items-center justify-between text-left ${c.split(' ')[0]}"><div class="overflow-hidden"><p class="font-bold text-sm text-gray-800 truncate">${r.title}</p><p class="text-[10px] text-gray-500 truncate mt-1">📍 ${r.subtitle || 'N/A'}</p></div><div class="shrink-0 ml-2"><span class="text-[8px] font-black px-2 py-1 rounded-md uppercase ${c.split(' ').slice(1).join(' ')}">${r.type}</span></div></div>`;
+            });
+            container.innerHTML = h;
+        }
+
+        window.onload = render;
+    </script>
+</body>
+</html>
