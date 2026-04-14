@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -170,14 +169,20 @@
                 else if (currentUser.role === "CHIEF" && s === "PENDING_CHIEF" && currentUser.divisions.includes(o.division?.toUpperCase())) show = true;
                 else if ((currentUser.role === "UNIT_HEAD" || currentUser.role === "MARPO") && s === "PENDING_UNIT_HEAD" && currentUser.divisions.includes(o.division?.toUpperCase()) && currentUser.unit === o.unit?.toUpperCase()) show = true;
                 if (show) {
-                    let d = (iRes.data || []).filter(i => i.to_no === to_no);
-                    pendingOrders.push({ to_no, names: list.map(g => g.emp_name), destinations: d.map(i => i.destination).join(', ') || 'N/A' });
+                    let d = (iRes.data || []).filter(i => i.to_no === to_no).sort((a,b) => new Date(a.travel_date) - new Date(b.travel_date));
+                    let dt = "N/A";
+                    if(d.length > 0) {
+                        const start = new Date(d[0].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        const end = new Date(d[d.length-1].travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        dt = d.length === 1 ? end : `${start} - ${end}`;
+                    }
+                    pendingOrders.push({ to_no, names: list.map(g => g.emp_name), destinations: [...new Set(d.map(i => i.destination))].join(', ') || 'N/A', dateStr: dt });
                 }
             }
             if (pendingOrders.length === 0) content.innerHTML = `<div class="flex flex-col items-center justify-center h-full opacity-50"><span class="text-4xl">✨</span><p class="font-bold mt-2 text-xs uppercase">Inbox Clear</p></div>`;
             else {
                 let h = `<div class="p-4 space-y-4 pb-32">`;
-                pendingOrders.forEach(o => { h += `<div class="bg-white p-4 rounded-2xl shadow-sm border"><span class="text-[10px] font-black text-gray-300 uppercase">${o.to_no}</span><p class="font-bold text-gray-800">${o.names.join(', ')}</p><p class="text-xs text-gray-500 truncate">📍 ${o.destinations}</p><div class="flex justify-end space-x-2 mt-4"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Deny</button><button onclick="processSingle('${o.to_no}', 'APPROVE')" class="px-5 py-2 dar-green text-white rounded-xl text-[11px] font-bold">Approve</button></div></div>`; });
+                pendingOrders.forEach(o => { h += `<div class="bg-white p-4 rounded-2xl shadow-sm border"><span class="text-[10px] font-black text-gray-300 uppercase">${o.to_no}</span><p class="font-bold text-gray-800">${o.names.join(', ')}</p><p class="text-xs text-gray-500 truncate">📍 ${o.destinations}</p><p class="text-[11px] text-dar-green font-bold mt-1">📅 ${o.dateStr}</p><div class="flex justify-end space-x-2 mt-4"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Deny</button><button onclick="processSingle('${o.to_no}', 'APPROVE')" class="px-5 py-2 dar-green text-white rounded-xl text-[11px] font-bold">Approve</button></div></div>`; });
                 content.innerHTML = h + `</div>`;
             }
         }
