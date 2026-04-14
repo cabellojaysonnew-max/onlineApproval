@@ -39,6 +39,34 @@
         
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         .batch-bar-position { bottom: calc(4rem + env(safe-area-inset-bottom)); }
+        
+        /* Custom Checkbox Styling */
+        .batch-checkbox {
+            appearance: none;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid #d1d5db;
+            border-radius: 0.375rem;
+            outline: none;
+            cursor: pointer;
+            position: relative;
+            background-color: white;
+            transition: all 0.2s;
+        }
+        .batch-checkbox:checked {
+            background-color: #003811;
+            border-color: #003811;
+        }
+        .batch-checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            color: white;
+            font-size: 0.875rem;
+            font-weight: bold;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
     </style>
 </head>
 <body class="h-[100dvh] w-full flex flex-col overflow-hidden text-gray-800 bg-gray-100 text-left">
@@ -70,6 +98,7 @@
         let currentTab = 'pending'; 
         let reportFilter = 'month'; 
         let reportData = [];
+        let selectedPendingOrders = new Set(); 
 
         function render() { if (!currentUser) renderLogin(); else renderMain(); }
 
@@ -122,14 +151,29 @@
                     <button onclick="switchTab('denied')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'denied' ? 'text-red-600 font-bold' : 'text-gray-400'}"><span class="text-xl">❌</span><span class="text-[9px] uppercase tracking-tighter">Denied</span></button>
                     <button onclick="switchTab('reports')" class="flex flex-col items-center justify-center w-1/4 ${currentTab === 'reports' ? 'text-blue-600 font-bold' : 'text-gray-400'}"><span class="text-xl">📊</span><span class="text-[9px] uppercase tracking-tighter">Reports</span></button>
                 </nav>
+                <div id="batchActionBar" class="fixed w-full left-0 bg-white border-t shadow-[0_-10px_20px_rgba(0,0,0,0.1)] z-40 px-4 py-3 flex justify-between items-center transition-transform duration-300 transform translate-y-full batch-bar-position">
+                    <span id="batchCountText" class="font-bold text-sm text-gray-700">0 selected</span>
+                    <div class="space-x-2">
+                        <button onclick="processBatch('DISAPPROVED')" class="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold">Deny</button>
+                        <button onclick="processBatch('APPROVE')" class="px-4 py-2 dar-green text-white rounded-lg text-xs font-bold shadow-md">Approve</button>
+                    </div>
+                </div>
                 <div id="pwdModal" class="hidden absolute inset-0 bg-black/50 z-[60] flex items-center justify-center px-4 modal-fade"><div class="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"><div class="dar-green text-white p-4 font-bold text-center relative">Security<button onclick="hideChangePassword()" class="absolute right-4 text-xl leading-none">✕</button></div><div class="p-6 space-y-4"><input type="password" id="oldPwd" placeholder="Current Password" class="w-full px-4 py-2 border rounded-lg text-sm"><input type="password" id="newPwd" placeholder="New Password" class="w-full px-4 py-2 border rounded-lg text-sm"><button onclick="updatePassword()" class="w-full dar-green text-white font-bold py-3 rounded-xl">Save</button></div></div></div>`;
+            
             if (currentTab === 'pending') loadPendingTab();
-            else if (currentTab === 'approved') loadStatusTab('APPROVED');
-            else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
-            else loadReportsTab();
+            else {
+                hideBatchActionBar();
+                if (currentTab === 'approved') loadStatusTab('APPROVED');
+                else if (currentTab === 'denied') loadStatusTab('DISAPPROVED');
+                else loadReportsTab();
+            }
         }
 
-        function switchTab(tab) { currentTab = tab; renderMain(); }
+        function switchTab(tab) { 
+            currentTab = tab; 
+            selectedPendingOrders.clear(); 
+            renderMain(); 
+        }
         function showChangePassword() { document.getElementById('pwdModal').classList.remove('hidden'); }
         function hideChangePassword() { document.getElementById('pwdModal').classList.add('hidden'); }
 
@@ -152,8 +196,61 @@
             return dMatch && uMatch;
         };
 
+        // --- BATCH ACTION LOGIC ---
+        function toggleBatchSelection(to_no, isChecked) {
+            if (isChecked) selectedPendingOrders.add(to_no);
+            else selectedPendingOrders.delete(to_no);
+            updateBatchActionBar();
+        }
+
+        function selectAllPending(checkbox) {
+            const checkboxes = document.querySelectorAll('.to-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+                if (checkbox.checked) selectedPendingOrders.add(cb.value);
+                else selectedPendingOrders.delete(cb.value);
+            });
+            updateBatchActionBar();
+        }
+
+        function updateBatchActionBar() {
+            const bar = document.getElementById('batchActionBar');
+            const countText = document.getElementById('batchCountText');
+            if (selectedPendingOrders.size > 0) {
+                countText.innerText = `${selectedPendingOrders.size} selected`;
+                bar.classList.remove('translate-y-full');
+            } else {
+                hideBatchActionBar();
+            }
+        }
+
+        function hideBatchActionBar() {
+            const bar = document.getElementById('batchActionBar');
+            if(bar) bar.classList.add('translate-y-full');
+        }
+
+        async function processBatch(action) {
+            if (selectedPendingOrders.size === 0) return;
+            
+            let p = action === 'DISAPPROVED' ? { status: "DISAPPROVED", received: prompt("Reason for denying ALL selected:") } : getAppPayload(currentUser);
+            if(p.status === "DISAPPROVED" && !p.received) return;
+
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<p class="flex items-center justify-center h-full text-dar-green font-bold animate-pulse">Processing Batch...</p>`;
+            hideBatchActionBar();
+
+            const updates = Array.from(selectedPendingOrders).map(to_no => 
+                supabaseClient.from('travel_orders').update(p).eq('to_no', to_no)
+            );
+            
+            await Promise.all(updates);
+            selectedPendingOrders.clear();
+            loadPendingTab();
+        }
+
         // --- PENDING TAB ---
         async function loadPendingTab() {
+            selectedPendingOrders.clear();
             const content = document.getElementById('mainContent');
             content.innerHTML = `<p class="flex items-center justify-center h-full text-gray-400 font-bold animate-pulse">Syncing Inbox...</p>`;
             const [oRes, iRes] = await Promise.all([supabaseClient.from('travel_orders').select('*'), supabaseClient.from('itinerary').select('*')]);
@@ -181,17 +278,32 @@
             }
             if (pendingOrders.length === 0) content.innerHTML = `<div class="flex flex-col items-center justify-center h-full opacity-50"><span class="text-4xl">✨</span><p class="font-bold mt-2 text-xs uppercase">Inbox Clear</p></div>`;
             else {
-                let h = `<div class="p-4 space-y-4 pb-32">`;
-                pendingOrders.forEach(o => { h += `<div class="bg-white p-4 rounded-2xl shadow-sm border"><span class="text-[10px] font-black text-gray-300 uppercase">${o.to_no}</span><p class="font-bold text-gray-800">${o.names.join(', ')}</p><p class="text-xs text-gray-500 truncate">📍 ${o.destinations}</p><p class="text-[11px] text-dar-green font-bold mt-1">📅 ${o.dateStr}</p><div class="flex justify-end space-x-2 mt-4"><button onclick="processSingle('${o.to_no}', 'DISAPPROVED')" class="px-5 py-2 bg-red-50 text-red-600 rounded-xl text-[11px] font-bold">Deny</button><button onclick="processSingle('${o.to_no}', 'APPROVE')" class="px-5 py-2 dar-green text-white rounded-xl text-[11px] font-bold">Approve</button></div></div>`; });
+                let h = `
+                <div class="sticky top-0 bg-gray-100 z-20 pt-4 px-4 pb-2 flex justify-between items-center shadow-sm border-b">
+                    <label class="flex items-center space-x-2 cursor-pointer text-sm font-bold text-gray-700">
+                        <input type="checkbox" class="batch-checkbox" onchange="selectAllPending(this)">
+                        <span>Select All</span>
+                    </label>
+                    <span class="text-xs text-gray-500 font-bold">${pendingOrders.length} Pending</span>
+                </div>
+                <div class="p-4 space-y-4 pb-32">`;
+                
+                pendingOrders.forEach(o => { 
+                    h += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border flex gap-3 relative">
+                        <div class="pt-1">
+                            <input type="checkbox" value="${o.to_no}" class="batch-checkbox to-checkbox" onchange="toggleBatchSelection('${o.to_no}', this.checked)">
+                        </div>
+                        <div class="flex-grow overflow-hidden">
+                            <span class="text-[10px] font-black text-gray-300 uppercase">${o.to_no}</span>
+                            <p class="font-bold text-gray-800 leading-tight">${o.names.join(', ')}</p>
+                            <p class="text-xs text-gray-500 truncate mt-1">📍 ${o.destinations}</p>
+                            <p class="text-[11px] text-dar-green font-bold mt-1">📅 ${o.dateStr}</p>
+                        </div>
+                    </div>`; 
+                });
                 content.innerHTML = h + `</div>`;
             }
-        }
-
-        async function processSingle(to_no, action) {
-            let p = action === 'DISAPPROVED' ? { status: "DISAPPROVED", received: prompt("Reason:") } : getAppPayload(currentUser);
-            if(p.status === "DISAPPROVED" && !p.received) return;
-            await supabaseClient.from('travel_orders').update(p).eq('to_no', to_no);
-            loadPendingTab();
         }
 
         function getAppPayload(u) {
