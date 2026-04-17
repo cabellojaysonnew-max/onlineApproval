@@ -157,7 +157,7 @@
     // No revision should be made unless explicitly instructed.
     
     // 1. Initialize Supabase
-    const supabaseUrl = 'YOUR_SUPABASE_PROJECT_URL'; // REPLACE THIS
+    const supabaseUrl = 'YOUR_SUPABASE_PROJECT_URL'; // MUST REPLACE THIS WITH YOUR ACTUAL SUPABASE URL (e.g. https://xyz.supabase.co)
     const supabaseKey = 'sb_publishable_poSZUQ9HI4wcY9poEo5b1w_Z-pAJbKo';
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
@@ -194,6 +194,11 @@
         const pass = document.getElementById('login-password').value.trim();
         const errorDiv = document.getElementById('login-error');
         
+        if (supabaseUrl === 'YOUR_SUPABASE_PROJECT_URL') {
+            errorDiv.innerText = "Configuration Error: Please insert your Supabase URL in the code.";
+            return;
+        }
+
         errorDiv.innerText = "Authenticating...";
 
         if (!empId || !pass) {
@@ -201,9 +206,9 @@
             return;
         }
 
-        // Query employees table strictly for PARPO division
+        // Query strictly against the 'employee' table based on personal context schema
         const { data, error } = await supabase
-            .from('employees')
+            .from('employee')
             .select('emp_id, full_name, division')
             .eq('emp_id', empId)
             .eq('pass', pass)
