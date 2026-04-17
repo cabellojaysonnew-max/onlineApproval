@@ -3,169 +3,263 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Travel Order QR Scanner</title>
+    <title>DAR Travel Order Tracker</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1b5e20">
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     
     <style>
+        :root {
+            --dar-green: #1b5e20;
+            --dar-light-green: #4caf50;
+            --dar-yellow: #fbc02d;
+            --bg-color: #f4f7f6;
+            --text-dark: #333;
+        }
+        
+        * { box-sizing: border-box; }
+        
         body { 
             font-family: Arial, sans-serif; 
-            padding: 20px; 
-            background-color: #f4f4f9; 
-            color: #333;
+            margin: 0; 
+            background-color: var(--bg-color); 
+            color: var(--text-dark);
         }
+
+        header {
+            background-color: var(--dar-green);
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            border-bottom: 4px solid var(--dar-yellow);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        header h1 { margin: 0; font-size: 1.5rem; }
+        header p { margin: 5px 0 0; font-size: 0.9rem; color: #e8f5e9; }
+
         .container {
             max-width: 600px;
-            margin: 0 auto;
+            margin: 20px auto;
             background: #fff;
-            padding: 20px;
+            padding: 25px;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
-        .user-selection {
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 15px;
-            background-color: #e9ecef;
-            border-radius: 6px;
+
+        /* Forms & Inputs */
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: var(--dar-green); }
+        .form-group input {
+            width: 100%; padding: 10px; border: 1px solid #ccc;
+            border-radius: 4px; font-size: 16px;
         }
-        select {
-            padding: 8px;
-            font-size: 16px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            width: 80%;
-            max-width: 300px;
-            margin-top: 5px;
-        }
-        #reader { 
-            width: 100%; 
-            margin: 20px auto; 
-        }
-        .controls { 
-            text-align: center; 
-            margin-bottom: 20px; 
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-        }
+
         button { 
-            padding: 10px 20px; 
-            cursor: pointer; 
-            border: none;
-            border-radius: 4px;
-            background-color: #0056b3;
-            color: white;
-            font-weight: bold;
+            width: 100%; padding: 12px; font-size: 16px; cursor: pointer; 
+            border: none; border-radius: 4px; font-weight: bold;
+            background-color: var(--dar-green); color: white;
+            transition: background 0.3s;
         }
-        button:hover { background-color: #004494; }
-        .mode-active { background-color: #28a745; }
-        .mode-active:hover { background-color: #218838; }
-        #result {
-            text-align: center;
-            margin-top: 15px;
-            font-weight: bold;
-            min-height: 24px;
-        }
-        .report-section {
-            margin-top: 40px;
-            border-top: 2px solid #eee;
-            padding-top: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            font-size: 14px;
-        }
+        button:hover { background-color: #124016; }
+        
+        /* Scanner UI */
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .controls button { background-color: #ccc; color: #333; }
+        .controls .mode-active { background-color: var(--dar-yellow); color: #000; }
+
+        #reader { width: 100%; margin: 20px auto; border-radius: 8px; overflow: hidden; }
+        #result-msg { text-align: center; margin-top: 15px; font-weight: bold; min-height: 24px; }
+        
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
         table, th, td { border: 1px solid #ddd; }
-        th, td { padding: 10px; text-align: left; }
-        th { background-color: #f8f9fa; }
+        th, td { padding: 8px; text-align: left; }
+        th { background-color: var(--dar-green); color: white; }
+
+        /* View Toggles */
+        #app-view { display: none; }
+        
+        .error { color: #d32f2f; font-size: 0.9rem; text-align: center; margin-top: 10px; font-weight: bold; }
+        
+        .user-badge {
+            background-color: #e8f5e9; padding: 15px; border-radius: 4px;
+            text-align: center; margin-bottom: 20px; border-left: 4px solid var(--dar-green);
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2 style="text-align: center;">Travel Order Document Tracker</h2>
+<header>
+    <h1>DAR Travel Order Tracker</h1>
+    <p>Document Routing & Scanning System</p>
+</header>
+
+<div class="container" id="login-view">
+    <h2 style="text-align: center; color: var(--dar-green);">Personnel Login</h2>
+    <p style="text-align: center; font-size: 0.9rem; color: #666; margin-bottom: 20px;">Restricted to PARPO Division Employees</p>
     
-    <div class="user-selection">
-        <label for="parpo-user"><strong>Select User (PARPO Division):</strong></label><br>
-        <select id="parpo-user">
-            <option value="">Loading PARPO employees...</option>
-        </select>
+    <div class="form-group">
+        <label>Employee ID</label>
+        <input type="text" id="login-emp-id" placeholder="Enter Employee ID">
+    </div>
+    <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="Enter Password">
+    </div>
+    <button onclick="handleLogin()">Secure Login</button>
+    <div id="login-error" class="error"></div>
+</div>
+
+<div class="container" id="app-view">
+    <div class="user-badge">
+        Logged in as: <strong id="display-user-name"></strong> <br>
+        <span style="font-size: 0.8rem; color: #555;">Processor Mode Active</span><br>
+        <button onclick="logout()" style="margin-top: 10px; padding: 8px; background: #d32f2f; width: auto;">Logout</button>
     </div>
 
     <div class="controls">
-        <button id="btn-receive" class="mode-active" onclick="setMode('receive')">Mode: RECEIVE</button>
-        <button id="btn-release" onclick="setMode('release')">Mode: RELEASE</button>
+        <button id="btn-receive" class="mode-active" onclick="setMode('receive')">SCAN TO RECEIVE</button>
+        <button id="btn-release" onclick="setMode('release')">SCAN TO RELEASE</button>
     </div>
-    <p style="text-align: center;">Currently Scanning To: <strong id="current-mode" style="text-transform: uppercase;">receive</strong></p>
+    
+    <p style="text-align: center; font-size: 1.1rem;">
+        Active Action: <strong id="current-mode" style="text-transform: uppercase; color: var(--dar-green);">receive</strong>
+    </p>
 
     <div id="reader"></div>
-    <div id="result"></div>
+    <div id="result-msg"></div>
 
-    <div class="report-section">
-        <h3>Receiving / Releasing Report</h3>
-        <button onclick="generateReport()">Generate Recent Report</button>
-        <table id="report-table">
-            <thead>
-                <tr>
-                    <th>TO Number</th>
-                    <th>Employee Name</th>
-                    <th>Received</th>
-                    <th>Released</th>
-                </tr>
-            </thead>
-            <tbody id="report-body">
-                <tr><td colspan="4" style="text-align:center;">Click generate to load data</td></tr>
-            </tbody>
-        </table>
+    <div style="margin-top: 30px;">
+        <h3 style="color: var(--dar-green); border-bottom: 2px solid var(--dar-yellow); padding-bottom: 5px;">Recent Transactions</h3>
+        <button onclick="generateReport()" style="background-color: var(--dar-light-green);">Refresh Logs</button>
+        <div style="overflow-x: auto;">
+            <table id="report-table">
+                <thead>
+                    <tr>
+                        <th>TO No.</th>
+                        <th>Received</th>
+                        <th>Released</th>
+                        <th>Processor</th>
+                    </tr>
+                </thead>
+                <tbody id="report-body">
+                    <tr><td colspan="4" style="text-align:center;">Click refresh to load data</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <script>
     // 1. Initialize Supabase
-    // Make sure to replace with your actual project URL. The key is what you provided.
-    const supabaseUrl = 'YOUR_SUPABASE_PROJECT_URL'; 
+    const supabaseUrl = 'YOUR_SUPABASE_PROJECT_URL'; // REPLACE THIS
     const supabaseKey = 'sb_publishable_poSZUQ9HI4wcY9poEo5b1w_Z-pAJbKo';
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
+    let currentUser = null;
     let currentMode = 'receive';
     let html5QrcodeScanner;
 
-    // 2. Fetch PARPO Employees for Dropdown
-    async function loadParpoEmployees() {
-        const selectElement = document.getElementById('parpo-user');
-        
-        const { data, error } = await supabase
-            .from('employee')
-            .select('full_name')
-            .eq('division', 'PARPO')
-            .order('full_name', { ascending: true });
+    // --- PWA Service Worker Registration ---
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js');
+        });
+    }
 
-        if (error) {
-            selectElement.innerHTML = `<option value="">Error loading users</option>`;
-            console.error('Error fetching employees:', error);
+    // --- Strict 12-Hour Format Helper ---
+    function format12Hour(date) {
+        let hours = date.getHours();
+        let minutes = date.getMinutes();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; 
+        minutes = minutes < 10 ? '0' + minutes : minutes;
+        
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const year = date.getFullYear();
+        
+        return `${year}-${month}-${day} ${hours}:${minutes} ${ampm}`;
+    }
+
+    // --- Authentication Logic ---
+    async function handleLogin() {
+        const empId = document.getElementById('login-emp-id').value.trim();
+        const pass = document.getElementById('login-password').value.trim();
+        const errorDiv = document.getElementById('login-error');
+        
+        errorDiv.innerText = "Authenticating...";
+
+        if (!empId || !pass) {
+            errorDiv.innerText = "Please enter both Employee ID and Password.";
             return;
         }
 
-        if (data && data.length > 0) {
-            selectElement.innerHTML = `<option value="" disabled selected>-- Select your name --</option>`;
-            data.forEach(emp => {
-                const option = document.createElement('option');
-                option.value = emp.full_name;
-                option.textContent = emp.full_name;
-                selectElement.appendChild(option);
-            });
+        // Query employee table strictly for PARPO division
+        const { data, error } = await supabase
+            .from('employee')
+            .select('emp_id, full_name, division')
+            .eq('emp_id', empId)
+            .eq('pass', pass)
+            .eq('division', 'PARPO')
+            .single();
+
+        if (error || !data) {
+            errorDiv.innerText = "Access Denied. Invalid credentials or you are not in the PARPO division.";
+            console.error(error);
         } else {
-            selectElement.innerHTML = `<option value="">No PARPO employees found</option>`;
+            // Login Success
+            currentUser = data.full_name;
+            localStorage.setItem('dar_processor', currentUser);
+            errorDiv.innerText = "";
+            showApp();
         }
     }
 
-    // Call immediately on load
-    loadParpoEmployees();
+    function logout() {
+        currentUser = null;
+        localStorage.removeItem('dar_processor');
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear();
+        }
+        document.getElementById('app-view').style.display = 'none';
+        document.getElementById('login-view').style.display = 'block';
+        document.getElementById('login-emp-id').value = '';
+        document.getElementById('login-password').value = '';
+    }
 
-    // 3. UI Mode Switcher
+    function checkAuthOnLoad() {
+        const savedUser = localStorage.getItem('dar_processor');
+        if (savedUser) {
+            currentUser = savedUser;
+            showApp();
+        } else {
+            document.getElementById('login-view').style.display = 'block';
+        }
+    }
+
+    function showApp() {
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('app-view').style.display = 'block';
+        document.getElementById('display-user-name').innerText = currentUser;
+        
+        // Initialize Scanner only when logged in
+        if (!html5QrcodeScanner) {
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader",
+                { fps: 10, qrbox: {width: 250, height: 250} },
+                false
+            );
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        }
+        generateReport();
+    }
+
+    // --- Scanner Logic ---
     function setMode(mode) {
         currentMode = mode;
         document.getElementById('current-mode').innerText = mode;
@@ -179,67 +273,38 @@
         }
     }
 
-    // 4. 12-Hour Format Helper (Strictly Enforced)
-    function format12Hour(date) {
-        let hours = date.getHours();
-        let minutes = date.getMinutes();
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12;
-        hours = hours ? hours : 12; // the hour '0' should be '12'
-        minutes = minutes < 10 ? '0' + minutes : minutes;
-        
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const year = date.getFullYear();
-        
-        return `${year}-${month}-${day} ${hours}:${minutes} ${ampm}`;
-    }
-
-    // 5. Handle Successful QR Scan
     async function onScanSuccess(decodedText, decodedResult) {
-        const resultDiv = document.getElementById('result');
-        const selectedUser = document.getElementById('parpo-user').value;
-
-        // Ensure a user is selected before processing
-        if (!selectedUser) {
-            resultDiv.innerText = "Error: Please select a user from the dropdown first.";
-            resultDiv.style.color = 'red';
-            return;
-        }
-
-        resultDiv.innerText = `Scanned: ${decodedText}. Updating database...`;
+        const resultDiv = document.getElementById('result-msg');
+        resultDiv.innerText = `Scanned TO: ${decodedText}. Updating...`;
         resultDiv.style.color = '#333';
         
-        // Pause scanner to prevent duplicate scans
         html5QrcodeScanner.pause();
 
         const timestamp = format12Hour(new Date());
-        const stampWithUser = `${timestamp} by ${selectedUser}`;
-        const updateData = {};
+        const updateData = { processor: currentUser };
 
+        // Assign the correct date column
         if (currentMode === 'receive') {
-            updateData.received = stampWithUser;
+            updateData.received = timestamp;
         } else {
-            updateData.released = stampWithUser;
+            updateData.released = timestamp;
         }
 
-        // 6. Update Supabase Database
+        // Update Database
         const { data, error } = await supabase
             .from('travel_orders')
             .update(updateData)
-            .eq('to_no', decodedText.trim()); 
+            .eq('to_no', decodedText.trim());
 
         if (error) {
-            resultDiv.innerText = `Error updating TO ${decodedText}: ${error.message}`;
+            resultDiv.innerText = `Database Error: ${error.message}`;
             resultDiv.style.color = 'red';
         } else {
-            resultDiv.innerText = `Success: TO ${decodedText} marked as ${currentMode.toUpperCase()}`;
+            resultDiv.innerText = `Successfully marked TO ${decodedText} as ${currentMode.toUpperCase()}`;
             resultDiv.style.color = 'green';
-            // Automatically refresh the report if it's visible
             generateReport();
         }
 
-        // Resume scanner after 3 seconds
         setTimeout(() => {
             resultDiv.innerText = '';
             html5QrcodeScanner.resume();
@@ -247,29 +312,20 @@
     }
 
     function onScanFailure(error) {
-        // Safe to ignore frame-by-frame failures while searching for a QR code
+        // Safe to ignore frame-by-frame scanner errors
     }
 
-    // 7. Initialize the Scanner
-    html5QrcodeScanner = new Html5QrcodeScanner(
-        "reader",
-        { fps: 10, qrbox: {width: 250, height: 250} },
-        /* verbose= */ false
-    );
-    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-
-    // 8. Report Generation Logic
+    // --- Reporting Logic ---
     async function generateReport() {
         const tbody = document.getElementById('report-body');
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Loading...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Loading records...</td></tr>';
 
-        // Fetch records where received OR released has data
         const { data, error } = await supabase
             .from('travel_orders')
-            .select('to_no, emp_name, received, released')
+            .select('to_no, received, released, processor')
             .or('received.not.is.null, released.not.is.null')
             .order('id', { ascending: false })
-            .limit(50); // Grabs recent 50
+            .limit(20);
 
         if (error) {
             tbody.innerHTML = `<tr><td colspan="4" style="color:red; text-align:center;">Error: ${error.message}</td></tr>`;
@@ -278,21 +334,24 @@
 
         tbody.innerHTML = '';
         if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No records found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No scanning records found.</td></tr>';
             return;
         }
 
         data.forEach(item => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${item.to_no || '-'}</td>
-                <td>${item.emp_name || '-'}</td>
+                <td><strong>${item.to_no || '-'}</strong></td>
                 <td>${item.received || '-'}</td>
                 <td>${item.released || '-'}</td>
+                <td>${item.processor || '-'}</td>
             `;
             tbody.appendChild(tr);
         });
     }
+
+    // Initialize App State
+    checkAuthOnLoad();
 </script>
 </body>
 </html>
