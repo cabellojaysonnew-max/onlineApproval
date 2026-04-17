@@ -99,7 +99,7 @@
     
     <div class="form-group">
         <label>Employee ID</label>
-        <input type="text" id="login-emp-id" placeholder="Enter Employee ID">
+        <input type="text" id="login-emp-id" placeholder="Enter Employee ID (emp_id)">
     </div>
     <div class="form-group">
         <label>Password</label>
@@ -150,7 +150,7 @@
 </div>
 
 <script>
-    // Supabase Configuration 
+    // Supabase Configuration
     const supabaseUrl = 'https://ytfpiyfapvybihlngxks.supabase.co'; 
     const supabaseKey = 'sb_publishable_poSZUQ9HI4wcY9poEo5b1w_Z-pAJbKo';
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
@@ -192,34 +192,49 @@
             return;
         }
 
-        const { data, error } = await supabase
+        // Subukan muna natin i-query ang 'employees' table
+        let { data, error } = await supabase
             .from('employees') 
             .select('emp_id, full_name, division, pass')
-            .eq('emp_id', empId)
-            .single();
+            .eq('emp_id', empId);
+
+        // Kung nagka-error dahil walang 'employees' na table, subukan ang 'employee' (walang 's')
+        if (error && error.message && error.message.includes("relation")) {
+            const retry = await supabase
+                .from('employee') 
+                .select('emp_id, full_name, division, pass')
+                .eq('emp_id', empId);
+            data = retry.data;
+            error = retry.error;
+        }
 
         if (error) {
-            if (error.code === 'PGRST116') {
-                errorDiv.innerHTML = `Walang ganyang Employee ID sa 'employees' table.<br><i>(O baka naka-ON ang RLS mo sa Supabase at naka-block ang basa)</i>`;
-            } else {
-                errorDiv.innerText = "Error: " + error.message;
-            }
+            errorDiv.innerHTML = `Database Error: ${error.message}`;
             console.error(error);
             return;
         }
 
-        if (data.pass !== pass) {
+        if (!data || data.length === 0) {
+            errorDiv.innerText = "Walang nahanap na user gamit ang emp_id na ito.";
+            return;
+        }
+
+        const userRecord = data[0];
+
+        // Strict Check ng Password
+        if (String(userRecord.pass) !== String(pass)) {
             errorDiv.innerText = "Mali ang password mo boss.";
             return;
         }
 
-        if (!data.division || data.division.toUpperCase() !== 'PARPO') {
-            errorDiv.innerText = `Access Denied. Para lang ito sa PARPO. Ang division mo ay: ${data.division || 'Walang division'}`;
+        // Strict Check ng Division - Tandaan: Para lang ito sa PARPO division
+        if (!userRecord.division || userRecord.division.toUpperCase() !== 'PARPO') {
+            errorDiv.innerText = `Access Denied. Para lang ito sa PARPO. Ang division mo ay: ${userRecord.division || 'Walang division'}`;
             return;
         }
 
         // Login Success
-        currentUser = data.full_name;
+        currentUser = userRecord.full_name;
         localStorage.setItem('dar_processor', currentUser);
         errorDiv.innerText = "";
         showApp();
