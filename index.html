@@ -49,7 +49,6 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        /* Forms & Inputs */
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: var(--dar-green); }
         .form-group input {
@@ -65,7 +64,6 @@
         }
         button:hover { background-color: #124016; }
         
-        /* Scanner UI */
         .controls { display: flex; gap: 10px; margin-bottom: 20px; }
         .controls button { background-color: #ccc; color: #333; }
         .controls .mode-active { background-color: var(--dar-yellow); color: #000; }
@@ -73,13 +71,11 @@
         #reader { width: 100%; margin: 20px auto; border-radius: 8px; overflow: hidden; }
         #result-msg { text-align: center; margin-top: 15px; font-weight: bold; min-height: 24px; }
         
-        /* Table */
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
         table, th, td { border: 1px solid #ddd; }
         th, td { padding: 8px; text-align: left; }
         th { background-color: var(--dar-green); color: white; }
 
-        /* View Toggles */
         #app-view { display: none; }
         
         .error { color: #d32f2f; font-size: 0.9rem; text-align: center; margin-top: 10px; font-weight: bold; }
@@ -99,7 +95,7 @@
 
 <div class="container" id="login-view">
     <h2 style="text-align: center; color: var(--dar-green);">Personnel Login</h2>
-    <p style="text-align: center; font-size: 0.9rem; color: #666; margin-bottom: 20px;">Restricted to PARPO Division Employees</p>
+    <p style="text-align: center; font-size: 0.9rem; color: #666; margin-bottom: 20px;">Restricted to PARPO Division</p>
     
     <div class="form-group">
         <label>Employee ID</label>
@@ -154,10 +150,8 @@
 </div>
 
 <script>
-    // No revision should be made unless explicitly instructed.
-    
-    // 1. Initialize Supabase
-    const supabaseUrl = 'YOUR_SUPABASE_PROJECT_URL'; // MUST REPLACE THIS WITH YOUR ACTUAL SUPABASE URL (e.g. https://xyz.supabase.co)
+    // Supabase Configuration 
+    const supabaseUrl = 'https://ytfpiyfapvybihlngxks.supabase.co'; 
     const supabaseKey = 'sb_publishable_poSZUQ9HI4wcY9poEo5b1w_Z-pAJbKo';
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
@@ -165,14 +159,12 @@
     let currentMode = 'receive';
     let html5QrcodeScanner;
 
-    // --- PWA Service Worker Registration ---
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js');
         });
     }
 
-    // --- Strict 12-Hour Format Helper ---
     function format12Hour(date) {
         let hours = date.getHours();
         let minutes = date.getMinutes();
@@ -188,16 +180,10 @@
         return `${year}-${month}-${day} ${hours}:${minutes} ${ampm}`;
     }
 
-    // --- Authentication Logic ---
     async function handleLogin() {
         const empId = document.getElementById('login-emp-id').value.trim();
         const pass = document.getElementById('login-password').value.trim();
         const errorDiv = document.getElementById('login-error');
-        
-        if (supabaseUrl === 'YOUR_SUPABASE_PROJECT_URL') {
-            errorDiv.innerText = "Configuration Error: Please insert your Supabase URL in the code.";
-            return;
-        }
 
         errorDiv.innerText = "Authenticating...";
 
@@ -206,25 +192,37 @@
             return;
         }
 
-        // Query strictly against the 'employee' table based on personal context schema
         const { data, error } = await supabase
-            .from('employee')
-            .select('emp_id, full_name, division')
+            .from('employees') 
+            .select('emp_id, full_name, division, pass')
             .eq('emp_id', empId)
-            .eq('pass', pass)
-            .eq('division', 'PARPO')
             .single();
 
-        if (error || !data) {
-            errorDiv.innerText = "Access Denied. Invalid credentials or you are not in the PARPO division.";
+        if (error) {
+            if (error.code === 'PGRST116') {
+                errorDiv.innerHTML = `Walang ganyang Employee ID sa 'employees' table.<br><i>(O baka naka-ON ang RLS mo sa Supabase at naka-block ang basa)</i>`;
+            } else {
+                errorDiv.innerText = "Error: " + error.message;
+            }
             console.error(error);
-        } else {
-            // Login Success
-            currentUser = data.full_name;
-            localStorage.setItem('dar_processor', currentUser);
-            errorDiv.innerText = "";
-            showApp();
+            return;
         }
+
+        if (data.pass !== pass) {
+            errorDiv.innerText = "Mali ang password mo boss.";
+            return;
+        }
+
+        if (!data.division || data.division.toUpperCase() !== 'PARPO') {
+            errorDiv.innerText = `Access Denied. Para lang ito sa PARPO. Ang division mo ay: ${data.division || 'Walang division'}`;
+            return;
+        }
+
+        // Login Success
+        currentUser = data.full_name;
+        localStorage.setItem('dar_processor', currentUser);
+        errorDiv.innerText = "";
+        showApp();
     }
 
     function logout() {
@@ -254,7 +252,6 @@
         document.getElementById('app-view').style.display = 'block';
         document.getElementById('display-user-name').innerText = currentUser;
         
-        // Initialize Scanner only when logged in
         if (!html5QrcodeScanner) {
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader",
@@ -266,7 +263,6 @@
         generateReport();
     }
 
-    // --- Scanner Logic ---
     function setMode(mode) {
         currentMode = mode;
         document.getElementById('current-mode').innerText = mode;
@@ -290,14 +286,12 @@
         const timestamp = format12Hour(new Date());
         const updateData = { processor: currentUser };
 
-        // Assign the correct date column
         if (currentMode === 'receive') {
             updateData.received = timestamp;
         } else {
             updateData.released = timestamp;
         }
 
-        // Update Database
         const { data, error } = await supabase
             .from('travel_orders')
             .update(updateData)
@@ -322,7 +316,6 @@
         // Safe to ignore frame-by-frame scanner errors
     }
 
-    // --- Reporting Logic ---
     async function generateReport() {
         const tbody = document.getElementById('report-body');
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Loading records...</td></tr>';
@@ -357,7 +350,6 @@
         });
     }
 
-    // Initialize App State
     checkAuthOnLoad();
 </script>
 </body>
