@@ -154,6 +154,8 @@
 </div>
 
 <script>
+    // No revision should be made unless explicitly instructed.
+    
     // 1. Initialize Supabase
     const supabaseUrl = 'YOUR_SUPABASE_PROJECT_URL'; // REPLACE THIS
     const supabaseKey = 'sb_publishable_poSZUQ9HI4wcY9poEo5b1w_Z-pAJbKo';
@@ -199,9 +201,9 @@
             return;
         }
 
-        // Query employee table strictly for PARPO division
+        // Query employees table strictly for PARPO division
         const { data, error } = await supabase
-            .from('employee')
+            .from('employees')
             .select('emp_id, full_name, division')
             .eq('emp_id', empId)
             .eq('pass', pass)
